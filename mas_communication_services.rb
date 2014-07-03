@@ -1,9 +1,11 @@
+require 'ruby_contracts'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
 
 # Services/tools for communication with the Market-Analysis server
 module MasCommunicationServices
   include MasCommunicationProtocol, TimePeriodTypeConstants
+  include Contracts::DSL
 
   protected
 
@@ -12,11 +14,18 @@ module MasCommunicationServices
   protected ## Constructed client requests
 
   # Initial message to the server to start a session
+  type :out => String
+  post "not empty" do |result| result.length > 0 end
+  post "result ends in EOM" do |result| result[-1] == EOM end
   def initial_message
     constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY, START_DATE,
                          DAILY_LABEL, 'now'])
   end
 
+  type :in => String, :out => String
+  pre  "not empty" do |key| key.length > 0 end
+  post "not empty" do |result| result.length > 0 end
+  post "result ends in EOM" do |result| result[-1] == EOM end
   def symbol_request(session_key)
     constructed_message([TRADABLE_LIST_REQUEST, session_key, NULL_FIELD])
   end

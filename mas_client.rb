@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'socket'
+require 'ruby_contracts'
 require_relative 'mas_communication_services'
 
 FSEP_PTRN = Regexp.new("[	]")
@@ -9,6 +10,7 @@ INITSTR = "6	0	start_date	daily	now - 9 months	start_date	hourly	now - 2 months	
 
 class MasClient
   include MasCommunicationServices
+  include Contracts::DSL
 
   public
 
@@ -18,6 +20,9 @@ class MasClient
 
   # Request all available tradable symbols from the server and initialize the
   # 'symbols' attribute with this list.
+  #type :in => String, :out => String
+  #pre do |key| key != nil end
+  pre do true end
   def request_symbols
     symreq = symbol_request(session_key)
 puts "sending '#{symreq}'"

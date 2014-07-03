@@ -1,0 +1,62 @@
+require_relative 'mas_communication_protocol'
+require_relative 'time_period_type_constants'
+
+# Services/tools for communication with the Market-Analysis server
+module MasCommunicationServices
+  include MasCommunicationProtocol, TimePeriodTypeConstants
+
+  protected
+
+  attr_reader :last_response_components
+
+  protected ## Constructed client requests
+
+  # Initial message to the server to start a session
+  def initial_message
+    constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY, START_DATE,
+                         DAILY_LABEL, 'now'])
+  end
+
+  def symbol_request(session_key)
+    constructed_message([TRADABLE_LIST_REQUEST, session_key, NULL_FIELD])
+  end
+
+  protected ## Protocol-related implementation tools
+
+  # Process response 'r' (String) and initialize last_response_components
+  # with the resulting array.
+  def process_response(r)
+    r.sub!(/#{EOM}$/, '')  # Strip off end-of-message character at end.
+    @last_response_components = r.split(MESSAGE_COMPONENT_SEPARATOR)
+  end
+
+  # The session key, if any, from the last response (stored in
+  # last_response_components)
+  def key_from_response
+    last_response_components[1]
+  end
+
+  # List of tradable symbols - assuming the last request was a symbol request
+  # and that it was successful.
+  def symbols_from_response
+    last_response_components[1].split(MESSAGE_RECORD_SEPARATOR)
+  end
+
+  # Was a successful/OK status resported as part of the last response?
+  def response_ok?
+    Integer(last_response_components[0]) == OK
+  end
+
+  protected ## Utilities
+
+  # Message, from 'parts' (array of message components), to be sent to the
+  # server, with field-separators and EOM added.
+  def constructed_message(parts)
+puts "mcs test#{MESSAGE_COMPONENT_SEPARATOR}endtest"
+    parts.join(MESSAGE_COMPONENT_SEPARATOR) + EOM
+  end
+
+end
+=begin
+INITSTR = "6	0	start_date	daily	now - 9 months	start_date	hourly	now - 2 months	start_date	30-minute	now - 55 days	start_date	20-minute	now - 1 month	start_date	15-minute	now - 1 month	start_date	10-minute	now - 18 days	start_date	5-minute	now - 18 days	start_date	weekly	now - 4 years	start_date	monthly	now - 8 years	start_date	quarterly	now - 10 years	end_date	daily	now\a"
+=end

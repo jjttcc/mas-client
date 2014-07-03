@@ -14,38 +14,9 @@ class MasClient
 
   public
 
-  attr_reader :socket, :session_key, :symbols
-
-  public
-
-  # Request all available tradable symbols from the server and initialize the
-  # 'symbols' attribute with this list.
-  #type :in => String, :out => String
-  #pre do |key| key != nil end
-  pre do true end
-  def request_symbols
-    symreq = symbol_request(session_key)
-puts "sending '#{symreq}'"
-    @socket = TCPSocket.new(host, port)
-    @socket.write(symreq)
-    @socket.close_write
-    result = @socket.read
-    process_response(result)
-    if response_ok?
-      puts "Everything is OK!"
-    else
-      puts "Everything is NOT OK!!!!!"
-      # !!!Handle the error...
-    end
-#puts "last_response_components: "
-#p last_response_components
-#puts "request_symbols got #{result}"
-    @symbols = symbols_from_response
-  end
-
   private
 
-  attr_reader :host, :port
+  attr_reader :host, :port, :socket
 
   def initialize(port)
     @host = 'localhost'
@@ -55,6 +26,7 @@ puts "sending '#{symreq}'"
     @socket.write(initial_message)
     @socket.close_write
     result = @socket.read
+    @socket.close_read
     puts result
     process_response(result)
 #!!!!This needs to be done in MasCommunicationServices:
@@ -68,5 +40,17 @@ puts "sending '#{symreq}'"
     end
     @session_key = key_from_response
 puts "session_key: #{session_key}"
+  end
+
+  def send(msg)
+    @socket = TCPSocket.new(@host, @port)
+    @socket.write(msg)
+    @socket.close_write
+  end
+
+  def response_from_send
+    result = @socket.read
+    @socket.close_read
+    result
   end
 end

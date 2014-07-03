@@ -1,4 +1,5 @@
 require 'ruby_contracts'
+require 'abstract'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
 
@@ -7,9 +8,53 @@ module MasCommunicationServices
   include MasCommunicationProtocol, TimePeriodTypeConstants
   include Contracts::DSL
 
+  public
+
+  attr_reader :session_key, :symbols
+
+  public
+
+  # Request all available tradable symbols from the server and initialize the
+  # 'symbols' attribute with this list.
+  #type :in => String, :out => String
+  #pre do |key| key != nil end
+  pre do true end
+  def request_symbols
+    sym_request = constructed_message([TRADABLE_LIST_REQUEST, session_key,
+                                  NULL_FIELD])
+    send(sym_request)
+    result = response_from_send
+=begin
+puts "sending '#{symreq}'"
+    @socket = TCPSocket.new(host, port)
+    @socket.write(symreq)
+    @socket.close_write
+    result = @socket.read
+=end
+    process_response(result)
+    if response_ok?
+      puts "Everything is OK!"
+    else
+      puts "Everything is NOT OK!!!!!"
+      # !!!Handle the error...
+    end
+#puts "last_response_components: "
+#p last_response_components
+#puts "request_symbols got #{result}"
+    @symbols = symbols_from_response
+  end
+
   protected
 
   attr_reader :last_response_components
+
+  protected ## Hook methods
+
+  abstract_method :send, :response_from_send
+
+  #def send; end
+  # Server's response from the last 'send'
+  #def response_from_send; end
 
   protected ## Constructed client requests
 
@@ -26,7 +71,7 @@ module MasCommunicationServices
   pre  "not empty" do |key| key.length > 0 end
   post "not empty" do |result| result.length > 0 end
   post "result ends in EOM" do |result| result[-1] == EOM end
-  def symbol_request(session_key)
+  def old____symbol_request(session_key)
     constructed_message([TRADABLE_LIST_REQUEST, session_key, NULL_FIELD])
   end
 

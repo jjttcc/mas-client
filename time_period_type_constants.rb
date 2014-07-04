@@ -3,25 +3,40 @@ module TimePeriodTypeConstants
 
   public
 
-  YEARLY_LABEL = "yearly"
+  YEARLY         = "yearly"
   # Name of the yearly time period type
 
-  QUARTERLY_LABEL = "quarterly"
+  QUARTERLY      = "quarterly"
   # Name of the quarterly time period type
 
-  MONTHLY_LABEL = "monthly"
-  # Name of the monthly time period type
+  MONTHLY        = "monthly"
+  # etc...
 
-  WEEKLY_LABEL = "weekly"
-  # Name of the weekly time period type
+  WEEKLY         = "weekly"
 
-  DAILY_LABEL = "daily"
-  # Name of the daily time period type
+  DAILY          = "daily"
 
-  HOURLY_LABEL = "hourly"
-  # Name of the hourly time period type
+  ONE_MINUTE     = "1-minute"
 
-  INVALID_LABEL = "Invalid type"
+  TWO_MINUTE     = "2-minute"
+
+  FIVE_MINUTE    = "5-minute"
+
+  TEN_MINUTE     = "10-minute"
+
+  FIFTEEN_MINUTE = "15-minute"
+
+  TWENTY_MINUTE  = "20-minute"
+
+  THIRTY_MINUTE  = "30-minute"
+
+  HOURLY         = "hourly"
+
+  INVALID        = "Invalid type"
   # Name of invalid period types
+
+  @@period_types = [DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY,
+                    ONE_MINUTE, TWO_MINUTE, FIVE_MINUTE, TEN_MINUTE,
+                    FIFTEEN_MINUTE, TWENTY_MINUTE, THIRTY_MINUTE, HOURLY]
 
 end

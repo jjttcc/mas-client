@@ -21,7 +21,34 @@ class TestMasClient < MiniTest::Unit::TestCase
     assert (symbols.include? "jnj"), "Missing symbol"
   end
 
-  def test_that_will_be_skipped
-    skip "test this later"
+  def test_indicators
+    @client.request_indicators("ibm", MasClient::DAILY)
+    indicators = @client.indicators
+    assert indicators.length > 0
+    sample_indicator1 = "Simple Moving Average"
+    sample_indicator2 = "Momentum"
+    sample_indicator3 = "MACD Histogram"
+    # (Assumption: test indicator list always includes these basic indicators.)
+    assert (indicators.include? sample_indicator1), "Missing symbol"
+    assert (indicators.include? sample_indicator2), "Missing symbol"
+    assert (indicators.include? sample_indicator3), "Missing symbol"
+  end
+
+  def test_period_types
+    @client.request_period_types("ibm")
+    ptypes = @client.period_types
+    assert ptypes.length > 0
+    assert (ptypes.include? "daily"), "Missing symbol"
+    assert (ptypes.include? "weekly"), "Missing symbol"
+    assert (ptypes.include? "monthly"), "Missing symbol"
+  end
+
+  def test_tradable_data
+#    @client.request_tradable_data("food", "weekly")
+    @client.request_tradable_data("ibm", "weekly")
+    assert @client.tradable_data.length > 0
+    data = @client.tradable_data
+    first_date = data[0][0]
+p "first date: ", first_date
   end
 end

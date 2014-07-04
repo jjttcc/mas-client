@@ -119,8 +119,17 @@ module MasCommunicationProtocol
   # "Dummy" session key to be used before obtaining a real key
   DUMMY_SESSION_KEY = 0
 
-  NULL_FIELD = '' # An empty field
+  NULL_FIELD = ''     # An empty field
 
-  NOW = 'now' # Current date/time
+  NOW = 'now'         # Current date/time
+
+  MSG_ID_IDX = 0      # Expected location of msgID - in server message
+
+  # (alias - for clarification/self-documentation)
+  MSG_STATUS_IDX = MSG_ID_IDX
+
+  SESSION_KEY_IDX = 1 # Expected location of session key - in server message
+
+  SYMBOL_LIST_IDX = 1 # Expected location of the tradable symbol list
 
 end

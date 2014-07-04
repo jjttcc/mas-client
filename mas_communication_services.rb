@@ -1,5 +1,4 @@
 require 'ruby_contracts'
-require 'abstract'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
 
@@ -17,44 +16,58 @@ module MasCommunicationServices
   # Request all available tradable symbols from the server and initialize the
   # 'symbols' attribute with this list.
   #type :in => String, :out => String
-  #pre do |key| key != nil end
-  pre do true end
+  pre "session_key valid" do session_key != nil and session_key.length > 0 end
   def request_symbols
     sym_request = constructed_message([TRADABLE_LIST_REQUEST, session_key,
                                   NULL_FIELD])
+    begin_communication
     send(sym_request)
-    result = response_from_send
-=begin
-puts "sending '#{symreq}'"
-    @socket = TCPSocket.new(host, port)
-    @socket.write(symreq)
-    @socket.close_write
-    result = @socket.read
-=end
-    process_response(result)
+    receive_response
+    end_communication
+    process_response(last_response)
     if response_ok?
       puts "Everything is OK!"
     else
       puts "Everything is NOT OK!!!!!"
-      # !!!Handle the error...
+      # !!!Reminder: Handle the error...
     end
-#puts "last_response_components: "
-#p last_response_components
-#puts "request_symbols got #{result}"
     @symbols = symbols_from_response
   end
 
   protected
 
-  attr_reader :last_response_components
+  attr_reader :last_response_components, :last_response
 
   protected ## Hook methods
 
-  abstract_method :send, :response_from_send
+  # Send 'msg' to the server.
+  type :in => String
+  pre "msg not empty" do |msg| msg.length > 0 end
+  pre "msg ends in EOM" do |msg| msg[-1] == EOM end
+  def send(msg)
+    raise "abstract method"
+  end
 
-  #def send; end
   # Server's response from the last 'send'
-  #def response_from_send; end
+  type @last_response => String
+  post "last_response exists" do last_response.length > 0 end
+  def receive_response
+    raise "abstract method"
+  end
+
+  # Perform any actions needed initially, before any communication has
+  # occured.
+  def initialize_communication
+  end
+
+  # Perform any actions needed in preparation for a send/receive
+  # communication.
+  def begin_communication
+  end
+
+  # Perform any actions that need to follow a send/receive communication.
+  def end_communication
+  end
 
   protected ## Constructed client requests
 
@@ -65,14 +78,6 @@ puts "sending '#{symreq}'"
   def initial_message
     constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY, START_DATE,
                          DAILY_LABEL, 'now'])
-  end
-
-  type :in => String, :out => String
-  pre  "not empty" do |key| key.length > 0 end
-  post "not empty" do |result| result.length > 0 end
-  post "result ends in EOM" do |result| result[-1] == EOM end
-  def old____symbol_request(session_key)
-    constructed_message([TRADABLE_LIST_REQUEST, session_key, NULL_FIELD])
   end
 
   protected ## Protocol-related implementation tools
@@ -87,18 +92,18 @@ puts "sending '#{symreq}'"
   # The session key, if any, from the last response (stored in
   # last_response_components)
   def key_from_response
-    last_response_components[1]
+    last_response_components[SESSION_KEY_IDX]
   end
 
   # List of tradable symbols - assuming the last request was a symbol request
   # and that it was successful.
   def symbols_from_response
-    last_response_components[1].split(MESSAGE_RECORD_SEPARATOR)
+    last_response_components[SYMBOL_LIST_IDX].split(MESSAGE_RECORD_SEPARATOR)
   end
 
   # Was a successful/OK status resported as part of the last response?
   def response_ok?
-    Integer(last_response_components[0]) == OK
+    Integer(last_response_components[MSG_STATUS_IDX]) == OK
   end
 
   protected ## Utilities
@@ -106,11 +111,32 @@ puts "sending '#{symreq}'"
   # Message, from 'parts' (array of message components), to be sent to the
   # server, with field-separators and EOM added.
   def constructed_message(parts)
-puts "mcs test#{MESSAGE_COMPONENT_SEPARATOR}endtest"
     parts.join(MESSAGE_COMPONENT_SEPARATOR) + EOM
   end
 
+  private
+
+  # Send the 'initial_message' to the server, obtain the response, and use
+  # it to set the session_key.
+  def initialize(*args)
+    initialize_communication(*args)
+    begin_communication
+    send(initial_message)
+    receive_response
+    end_communication
+    process_response(last_response)
+    if response_ok?
+      puts "Everything is OK!"
+    else
+      puts "Everything is NOT OK!!!!!"
+      # !!!Reminder: Handle the error...
+    end
+    @session_key = key_from_response
+  end
+
 end
+
+#### !!!!Delete this stuff when it's no longer needed for reference.
 =begin
 INITSTR = "6	0	start_date	daily	now - 9 months	start_date	hourly	now - 2 months	start_date	30-minute	now - 55 days	start_date	20-minute	now - 1 month	start_date	15-minute	now - 1 month	start_date	10-minute	now - 18 days	start_date	5-minute	now - 18 days	start_date	weekly	now - 4 years	start_date	monthly	now - 8 years	start_date	quarterly	now - 10 years	end_date	daily	now\a"
 =end

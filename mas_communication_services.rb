@@ -9,31 +9,92 @@ module MasCommunicationServices
 
   public
 
-  attr_reader :session_key, :symbols
+  attr_reader :session_key, :symbols, :indicators, :period_types,
+    :tradable_data
 
   public
 
   # Request all available tradable symbols from the server and initialize the
   # 'symbols' attribute with this list.
-  #type :in => String, :out => String
   pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  type @symbols => Array
   def request_symbols
     sym_request = constructed_message([TRADABLE_LIST_REQUEST, session_key,
                                   NULL_FIELD])
-    begin_communication
-    send(sym_request)
-    receive_response
-    end_communication
-    process_response(last_response)
-    if response_ok?
-      puts "Everything is OK!"
-    else
-      puts "Everything is NOT OK!!!!!"
-      # !!!Reminder: Handle the error...
-    end
-    @symbols = symbols_from_response
+    execute_request(sym_request)
+    @symbols = list_from_response
   end
 
+  # Request all indicators (TA functions) available for the tradable
+  # identified by 'symbol' with 'period_type'.
+  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
+    ptype != nil and @@period_types.include?(ptype) end
+  type @indicators => Array
+  def request_indicators(symbol, period_type)
+    ind_request = constructed_message([INDICATOR_LIST_REQUEST, session_key,
+                                  symbol, period_type])
+    execute_request(ind_request)
+    @indicators = list_from_response
+  end
+
+  # Request all period-types available for the 'symbol'.
+  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "symbol valid" do |symbol| symbol != nil and symbol.length > 0 end
+  type @period_types => Array
+  def request_period_types(symbol)
+    ptype_request = constructed_message([TRADING_PERIOD_TYPE_REQUEST,
+                                         session_key, symbol])
+    execute_request(ptype_request)
+    @period_types = list_from_response
+  end
+
+  # Request all period-types available for the 'symbol'.
+  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
+    ptype != nil and @@period_types.include?(ptype) end
+  def request_tradable_data(symbol, period_type)
+    data_request = constructed_message([TRADABLE_DATA_REQUEST, session_key,
+                                        symbol, period_type])
+    execute_request(data_request, method(:process_data_response))
+#!!!!!p "request_tradable_data - last response: '", last_response, "'"
+    @tradable_data = list_from_response
+  end
+
+  private # !!!!!Move this to appropriate location!!!
+  def process_data_response(response)
+    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR, 2)
+#    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR)
+#puts "lrc size: ", @last_response_components.length
+#    lines = response[response.index(MESSAGE_COMPONENT_SEPARATOR)+1..-1].split(
+#      MESSAGE_RECORD_SEPARATOR)
+    lines = list_from_response
+    @tradable_data = lines.map do |line|
+      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    end
+#!!!!!!!Need an implementation here!!!! and a reasonable name!!!!!!
+puts "process_data_response..."
+puts "data:"
+tradable_data[0..4].each do |l|
+  p l
+end
+  end
+=begin
+  def process_data_response(response)
+    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR)
+p "last_response_components: '", @last_response_components, "'"
+    lines = list_from_response
+    @tradable_data = lines.map do |line|
+      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    end
+#!!!!!!!Need an implementation here!!!! and a reasonable name!!!!!!
+puts "process_data_response..."
+puts "data:"
+tradable_data[0..4].each do |l|
+  p l
+end
+  end
+=end
   protected
 
   attr_reader :last_response_components, :last_response
@@ -77,13 +138,15 @@ module MasCommunicationServices
   post "result ends in EOM" do |result| result[-1] == EOM end
   def initial_message
     constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY, START_DATE,
-                         DAILY_LABEL, 'now'])
+                         DAILY, 'now'])
   end
 
   protected ## Protocol-related implementation tools
 
   # Process response 'r' (String) and initialize last_response_components
   # with the resulting array.
+  post "last response exists" do last_response_components != nil end
+  post "last response array" do last_response_components.class == [].class end
   def process_response(r)
     r.sub!(/#{EOM}$/, '')  # Strip off end-of-message character at end.
     @last_response_components = r.split(MESSAGE_COMPONENT_SEPARATOR)
@@ -95,10 +158,12 @@ module MasCommunicationServices
     last_response_components[SESSION_KEY_IDX]
   end
 
-  # List of tradable symbols - assuming the last request was a symbol request
-  # and that it was successful.
-  def symbols_from_response
-    last_response_components[SYMBOL_LIST_IDX].split(MESSAGE_RECORD_SEPARATOR)
+  # Array of items obtained from the response (consisting of record-separated
+  # values) to the last successful data request
+  pre "last response exists" do last_response_components != nil end
+  pre "last response valid" do last_response_components.length > 0 end
+  def list_from_response
+    last_response_components[DATA_IDX].split(MESSAGE_RECORD_SEPARATOR)
   end
 
   # Was a successful/OK status resported as part of the last response?
@@ -118,20 +183,37 @@ module MasCommunicationServices
 
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
+  post "session_key valid" do session_key != nil and session_key.length > 0 end
   def initialize(*args)
     initialize_communication(*args)
+    execute_request(initial_message)
+    @session_key = key_from_response
+  end
+
+  # Execute the specified 'request' to the server and call process_response
+  # with the server's response (in 'last_response').  Check if the server
+  # returned OK status, and, if not, raise an appropriate exception.  If
+  # 'processor' is not nil, it will be called to process the server's
+  # response; otherwise, process_response will be called.
+  pre "request valid" do |request| request != nil and request.length > 0 end
+  post "last response exists" do last_response_components != nil end
+  post "last response array" do last_response_components.class == [].class end
+  def execute_request(request, processor = nil)
+    @last_response_components = nil
     begin_communication
-    send(initial_message)
+    send(request)
     receive_response
     end_communication
-    process_response(last_response)
+    if processor
+      processor.call(last_response)
+    else
+      process_response(last_response)
+    end
     if response_ok?
       puts "Everything is OK!"
     else
-      puts "Everything is NOT OK!!!!!"
-      # !!!Reminder: Handle the error...
+      raise "Server returned error status: #{last_response}"
     end
-    @session_key = key_from_response
   end
 
 end

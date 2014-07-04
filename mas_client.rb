@@ -10,9 +10,13 @@ class MasClient
   include MasCommunicationServices
   include Contracts::DSL
 
+  public
+
+  attr_reader :host, :port
+
   private
 
-  attr_reader :host, :port, :socket
+  attr_reader :socket
 
   def initialize_communication(port)
     @host = 'localhost'

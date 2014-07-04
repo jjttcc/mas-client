@@ -1,6 +1,5 @@
 #!/usr/bin/env ruby
 
-#require 'socket'
 require_relative 'mas_client'
 
 port = 2001

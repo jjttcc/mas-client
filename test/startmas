@@ -11,3 +11,4 @@ fi
 # Exit if mas is already running.
 if pgrep -laf "mas -b.*$MASPORT" >/dev/null; then exit 0; fi
 mas -b -w -f , $MASPORT&
+sleep 1 # Give the server a chance to start-up/initialize.

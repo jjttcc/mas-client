@@ -10,7 +10,7 @@ module MasCommunicationServices
   public
 
   attr_reader :session_key, :symbols, :indicators, :period_types,
-    :tradable_data
+    :tradable_data, :indicator_data
 
   public ## Access
 
@@ -66,7 +66,7 @@ module MasCommunicationServices
     @period_types = list_from_response
   end
 
-  # Request all period-types available for the 'symbol'.
+  # Request data for the 'symbol' at 'period_type'.
   pre "logged in" do logged_in end
   pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) end
@@ -74,6 +74,26 @@ module MasCommunicationServices
     data_request = constructed_message([TRADABLE_DATA_REQUEST, session_key,
                                         symbol, period_type])
     execute_request(data_request, method(:process_data_response))
+    lines = list_from_response
+    @tradable_data = lines.map do |line|
+      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    end
+  end
+
+  # Request indicator - for indicator_id - data for the 'symbol' at
+  # 'period_type'.
+  type :in => [String, Integer, String]
+  pre "logged in" do logged_in end
+  pre "args valid" do |sym, ind_id, ptype| sym != nil and sym.length > 0 and
+    ptype != nil and @@period_types.include?(ptype) and ind_id >= 0 end
+  def request_indicator_data(symbol, indicator_id, period_type)
+    data_request = constructed_message([INDICATOR_DATA_REQUEST, session_key,
+                                        indicator_id, symbol, period_type])
+    execute_request(data_request, method(:process_data_response))
+    lines = list_from_response
+    @indicator_data = lines.map do |line|
+      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    end
   end
 
   protected
@@ -205,11 +225,8 @@ module MasCommunicationServices
   end
 
   def process_data_response(response)
+    response.sub!(/#{EOM}$/, '')  # Strip off end-of-message character at end.
     @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR, 2)
-    lines = list_from_response
-    @tradable_data = lines.map do |line|
-      line.split(MESSAGE_COMPONENT_SEPARATOR)
-    end
   end
 
 end

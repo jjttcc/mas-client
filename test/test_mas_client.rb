@@ -68,25 +68,31 @@ class TestMasClient < MiniTest::Unit::TestCase
       assert $client.tradable_data.length > 0
       data = $client.tradable_data
       first_record = data[0]
-      assert first_record.length == 6
-      assert_match /^\d{8}$/, first_record[0], "date is 8 chars"
-      (1..4).each do |i|
-        assert_match /^\d+(\.\d+)?$/, first_record[i], "o/h/l/c format"
+      last_record = data[-1]
+      [first_record, last_record].each do |record|
+        assert record.length == 6
+        assert_match /^\d{8}$/, record[0], "date is 8 chars"
+        (1..4).each do |i|
+          assert_match /^\d+(\.\d+)?$/, record[i], "o/h/l/c format"
+        end
+        assert_match /^\d+$/, record[5], "volume is integer"
       end
-      assert_match /^\d+$/, first_record[5], "volume is integer"
     end
   end
 
   def test_indicator_data
-    skip
-    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
-      $client.request_indicator_data("ibm", period)
-      assert $client.indicator_data.length > 0
+#    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
+    ['daily', 'weekly', 'quarterly'].each do |period|
+      $client.request_indicator_data("ibm", 1, period)
+      assert $client.indicator_data.length > 0, "#{period} data length"
       data = $client.indicator_data
       first_record = data[0]
-      assert first_record.length == 2
-      assert_match /^\d{8}$/, first_record[0], "date is 8 chars"
-      assert_match /^\d+(\.\d+)?$/, first_record[1], "float format"
+      last_record = data[-1]
+      [first_record, last_record].each do |record|
+        assert record.length == 2
+        assert_match /^\d{8}$/, record[0], "date is 8 chars"
+        assert_match /^\d+(\.\d+)?$/, record[1], "float format"
+      end
     end
   end
 

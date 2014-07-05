@@ -1,0 +1,74 @@
+# Sample http configuration file - set up for yahoo.com
+# (Currently, only end-of-day data retrieval is available.  Intraday may be
+# added later.)
+
+# Format: "label_string<tab>setting"
+
+# Does the month in a date specification start at zero rather than one -
+# that is, does 0 indicate January and 11 indicate December?
+# NOTE: This specification does not apply to the month settings specified
+# in this file, which always start at 1; rather it specifies how the date
+# settings are translated into the "HTTP GET" request for retrieving the
+# specified range of data.  Note that the chart.yahoo.com site expects (as
+# of Sep. 2002) months to start at zero and thus months_start_at_zero
+# should be set to true if you are using yahoo's site.
+# (Change "true" below to "false" or simply delete the "months_start_at_zero"
+# specification below, since the default is false, to specify that months
+# start at one.)
+months_start_at_zero	true
+
+# Specification for the start and end dates for the data to be retrieved
+# "now" means, of course, the current date; if an actual date is used,
+# it must be of the form: yyyymmdd.
+eod_start_date	now - 4 years
+eod_end_date	now
+
+# The host component of the http URL used to retrieve market data
+host	ichart.yahoo.com
+
+# If a proxy needs to be used - for example, to get through a firewall -,
+# the following two settings need to be uncommented and the correct values
+# filled in for the proxy you are using.
+#proxy_address	123.456.789.123
+#proxy_port_number	8002
+
+# The path component of the http URL used to retrieve market data
+# old/orig:
+#path	table.csv?s=<symbol>&a=<startmonth>&b=<startday>&c=<startyear>&d=<endmonth>&e=<endday>&f=<endyear>&g=d&q=q&y=0&z=<symbol>&x=.csv
+path	table.csv?s=<symbol>&a=<startmonth>&b=<startday>&c=<startyear>&d=<endmonth>&e=<endday>&f=<endyear>&g=d&ignore=.csv
+
+#table.csv?s=<symbol>&a=<startmonth>&b=<startday>&c=<startyear>&d=<endmonth>&e=<endday>&f=<endyear>&g=d&ignore=.csv
+#table.csv?s=rht&g=d&a=0&b=01&c=2005&ignore=.csv&d=5&e=28&f=2014
+# (^^^^^^^^^^^^^ valid-query above ^^^^^^^^^^^^^^^^^^^^^^^^^^^^)
+
+# Path of the file that contains the list of symbols for the tradables to
+# be downloaded.  (In this case it's expected to be in the current
+# directory.)
+symbol_file	symbols
+
+# The field separator to use for output when converting the retrieved data
+# Must be just one character; If not specified, comma will be used.
+output_field_separator	,
+
+# The command to post-process the retrieved data, usually for the purpose of
+# converting it into an expected format.  In this case, the specification
+# is for a conversion component called "yahoo", which, as of July 2002, is
+# the only internal conversion component available; more may be added later.
+post_process_command	yahoo
+#post_process_command	[none]
+
+# The time at which to attempt to retrieve the latest end-of-day data from
+# the http data-source site.  It should be in the user's local time.
+# This needs to be set carefully: Too early and a lot of time will be wasted
+# trying to retrieve data that doesn't exist yet; too late and your data
+# will not be as up-to-date as it could be.  Format: hh:mm (24-hour clock)
+eod_turnover_time	19:00
+
+# These specifications prevent unecessary retrieval of data on a weekend
+# if the current time is later than eod_turnover_time.  If data does need
+# to be retrieved, remove or comment out the appropriate specification;
+# for example, if a tradable is traded on Saturday and end-of-day data for
+# it is available, comment out the "ignore_day_of_week	saturday"
+# specification.
+ignore_day_of_week	saturday
+ignore_day_of_week	sunday

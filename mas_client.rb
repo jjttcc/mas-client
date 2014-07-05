@@ -30,8 +30,6 @@ class MasClient
 
   def receive_response
     @last_response = @socket.read
-    #!!!!!!Note: Probably need to raise an exception if the read fails or the
-    #!!!response is empty.
   end
 
   def begin_communication

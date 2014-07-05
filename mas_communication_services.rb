@@ -12,11 +12,28 @@ module MasCommunicationServices
   attr_reader :session_key, :symbols, :indicators, :period_types,
     :tradable_data
 
-  public
+  public ## Access
+
+  # Is this object currently logged in to the server with a valid session
+  # key?
+  def logged_in
+    session_key != nil and session_key.length > 0
+  end
+
+  public ## Operations
+
+  # Logout from the server.
+  pre "logged in" do logged_in end
+  def logout
+    logout_request = constructed_message([LOGOUT_REQUEST, session_key,
+                                  NULL_FIELD])
+    #send_request(logout_request)
+    @session_key = nil
+  end
 
   # Request all available tradable symbols from the server and initialize the
   # 'symbols' attribute with this list.
-  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "logged in" do logged_in end
   type @symbols => Array
   def request_symbols
     sym_request = constructed_message([TRADABLE_LIST_REQUEST, session_key,
@@ -27,7 +44,7 @@ module MasCommunicationServices
 
   # Request all indicators (TA functions) available for the tradable
   # identified by 'symbol' with 'period_type'.
-  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "logged in" do logged_in end
   pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) end
   type @indicators => Array
@@ -39,7 +56,7 @@ module MasCommunicationServices
   end
 
   # Request all period-types available for the 'symbol'.
-  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "logged in" do logged_in end
   pre "symbol valid" do |symbol| symbol != nil and symbol.length > 0 end
   type @period_types => Array
   def request_period_types(symbol)
@@ -50,51 +67,15 @@ module MasCommunicationServices
   end
 
   # Request all period-types available for the 'symbol'.
-  pre "session_key valid" do session_key != nil and session_key.length > 0 end
+  pre "logged in" do logged_in end
   pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) end
   def request_tradable_data(symbol, period_type)
     data_request = constructed_message([TRADABLE_DATA_REQUEST, session_key,
                                         symbol, period_type])
     execute_request(data_request, method(:process_data_response))
-#!!!!!p "request_tradable_data - last response: '", last_response, "'"
-    @tradable_data = list_from_response
   end
 
-  private # !!!!!Move this to appropriate location!!!
-  def process_data_response(response)
-    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR, 2)
-#    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR)
-#puts "lrc size: ", @last_response_components.length
-#    lines = response[response.index(MESSAGE_COMPONENT_SEPARATOR)+1..-1].split(
-#      MESSAGE_RECORD_SEPARATOR)
-    lines = list_from_response
-    @tradable_data = lines.map do |line|
-      line.split(MESSAGE_COMPONENT_SEPARATOR)
-    end
-#!!!!!!!Need an implementation here!!!! and a reasonable name!!!!!!
-puts "process_data_response..."
-puts "data:"
-tradable_data[0..4].each do |l|
-  p l
-end
-  end
-=begin
-  def process_data_response(response)
-    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR)
-p "last_response_components: '", @last_response_components, "'"
-    lines = list_from_response
-    @tradable_data = lines.map do |line|
-      line.split(MESSAGE_COMPONENT_SEPARATOR)
-    end
-#!!!!!!!Need an implementation here!!!! and a reasonable name!!!!!!
-puts "process_data_response..."
-puts "data:"
-tradable_data[0..4].each do |l|
-  p l
-end
-  end
-=end
   protected
 
   attr_reader :last_response_components, :last_response
@@ -109,7 +90,7 @@ end
     raise "abstract method"
   end
 
-  # Server's response from the last 'send'
+  # Obtain the server's response from the last 'send'
   type @last_response => String
   post "last_response exists" do last_response.length > 0 end
   def receive_response
@@ -138,14 +119,14 @@ end
   post "result ends in EOM" do |result| result[-1] == EOM end
   def initial_message
     constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY, START_DATE,
-                         DAILY, 'now'])
+                         DAILY, 'now - 36 months'])
   end
 
   protected ## Protocol-related implementation tools
 
   # Process response 'r' (String) and initialize last_response_components
   # with the resulting array.
-  post "last response exists" do last_response_components != nil end
+  post "last_response_comp exists" do last_response_components != nil end
   post "last response array" do last_response_components.class == [].class end
   def process_response(r)
     r.sub!(/#{EOM}$/, '')  # Strip off end-of-message character at end.
@@ -160,8 +141,8 @@ end
 
   # Array of items obtained from the response (consisting of record-separated
   # values) to the last successful data request
-  pre "last response exists" do last_response_components != nil end
-  pre "last response valid" do last_response_components.length > 0 end
+  pre "last_response_comp exists" do last_response_components != nil end
+  pre "last_response_comp valid" do last_response_components.length > 0 end
   def list_from_response
     last_response_components[DATA_IDX].split(MESSAGE_RECORD_SEPARATOR)
   end
@@ -183,7 +164,7 @@ end
 
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
-  post "session_key valid" do session_key != nil and session_key.length > 0 end
+  post "logged in" do logged_in end
   def initialize(*args)
     initialize_communication(*args)
     execute_request(initial_message)
@@ -196,14 +177,11 @@ end
   # 'processor' is not nil, it will be called to process the server's
   # response; otherwise, process_response will be called.
   pre "request valid" do |request| request != nil and request.length > 0 end
-  post "last response exists" do last_response_components != nil end
-  post "last response array" do last_response_components.class == [].class end
+  post "last_resp_comp exists" do last_response_components != nil end
+  post "last_resp_comp array" do last_response_components.class == [].class end
   def execute_request(request, processor = nil)
     @last_response_components = nil
-    begin_communication
-    send(request)
-    receive_response
-    end_communication
+    send_request(request)
     if processor
       processor.call(last_response)
     else
@@ -214,6 +192,31 @@ end
     else
       raise "Server returned error status: #{last_response}"
     end
+  end
+
+  # Send the specified 'request' to the server and call 'receive_response'
+  # to obtain the response.
+  pre "request valid" do |request| request != nil and request.length > 0 end
+  def send_request(request)
+    begin_communication
+    send(request)
+    receive_response
+    end_communication
+  end
+
+  def process_data_response(response)
+    @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR, 2)
+#s1 = last_response_components[0]; p "s1: ", s1
+#s2 = last_response_components[1]; p "s2: ", s2[0..124]
+    lines = list_from_response
+    @tradable_data = lines.map do |line|
+      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    end
+#puts "td.class: ", tradable_data.class
+#puts "td[0].class: ", tradable_data[0].class
+#puts "td[1].class: ", tradable_data[1].class
+#p "td[0]: ", tradable_data[0]
+#!!!!p "self: ", self
   end
 
 end

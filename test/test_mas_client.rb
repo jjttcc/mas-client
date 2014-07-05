@@ -77,12 +77,12 @@ class TestMasClient < MiniTest::Unit::TestCase
     end
   end
 
-  def test_tradable_data
+  def test_indicator_data
     skip
     ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
       $client.request_indicator_data("ibm", period)
-      assert $client.tradable_data.length > 0
-      data = $client.tradable_data
+      assert $client.indicator_data.length > 0
+      data = $client.indicator_data
       first_record = data[0]
       assert first_record.length == 2
       assert_match /^\d{8}$/, first_record[0], "date is 8 chars"

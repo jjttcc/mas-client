@@ -3,11 +3,11 @@
 # vi: expandtab
 
 script_path=$(dirname $0)
-cd $script_path
+cd $script_path >/dev/null
 if [ -z "$MASPORT" ]; then
     . ../.env
 fi
 
 # Exit if mas is already running.
-if pgrep -laf "mas -b.*$MASPORT"; then exit 0; fi
+if pgrep -laf "mas -b.*$MASPORT" >/dev/null; then exit 0; fi
 mas -b -w -f , $MASPORT&

@@ -63,34 +63,34 @@ class TestMasClient < MiniTest::Unit::TestCase
   end
 
   def test_tradable_data
-#    $client.request_tradable_data("food", "weekly")
-#    $client.request_tradable_data("ibm", "weekly")
-    $client.request_tradable_data("ibm", "daily")
-    assert $client.tradable_data.length > 0
-    data = $client.tradable_data
-    first_record = data[0]
-    assert_match /^\d{8}$/, first_record[0], "date is 8 chars"
-    (1..4).each do |i|
-      assert_match /^\d+(\.\d+)?$/, first_record[i], "o/h/l/c format"
+    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
+      $client.request_tradable_data("ibm", period)
+      assert $client.tradable_data.length > 0
+      data = $client.tradable_data
+      first_record = data[0]
+      assert first_record.length == 6
+      assert_match /^\d{8}$/, first_record[0], "date is 8 chars"
+      (1..4).each do |i|
+        assert_match /^\d+(\.\d+)?$/, first_record[i], "o/h/l/c format"
+      end
+      assert_match /^\d+$/, first_record[5], "volume is integer"
     end
-    assert_match /^\D+$/, first_record[5], "volume is integer"
-#p "cl.td.class: ", $client.tradable_data.class
-#p "cl.td[0].class: ", $client.tradable_data[0].class
-#p "cl.td[1].class: ", $client.tradable_data[1].class
-#p "cl.td[0]: ", $client.tradable_data[0]
-#p "cl: ", $client
-#data0 = data[0]
-#puts "data0:\n"; p data0
-#puts "data1:\n"; p data[1]
-#puts "data1:\n"; p data[2]
-#    first_date = data[0][0]
-#p "first date: ", first_date
-#p "first close: ", data[0][4]
-#p "first volume: ", data[0][5]
+  end
+
+  def test_tradable_data
+    skip
+    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
+      $client.request_indicator_data("ibm", period)
+      assert $client.tradable_data.length > 0
+      data = $client.tradable_data
+      first_record = data[0]
+      assert first_record.length == 2
+      assert_match /^\d{8}$/, first_record[0], "date is 8 chars"
+      assert_match /^\d+(\.\d+)?$/, first_record[1], "float format"
+    end
   end
 
   def test_logout
     $client.logout
-#    $client.request_symbols
   end
 end

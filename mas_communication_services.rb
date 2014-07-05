@@ -206,17 +206,10 @@ module MasCommunicationServices
 
   def process_data_response(response)
     @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR, 2)
-#s1 = last_response_components[0]; p "s1: ", s1
-#s2 = last_response_components[1]; p "s2: ", s2[0..124]
     lines = list_from_response
     @tradable_data = lines.map do |line|
       line.split(MESSAGE_COMPONENT_SEPARATOR)
     end
-#puts "td.class: ", tradable_data.class
-#puts "td[0].class: ", tradable_data[0].class
-#puts "td[1].class: ", tradable_data[1].class
-#p "td[0]: ", tradable_data[0]
-#!!!!p "self: ", self
   end
 
 end

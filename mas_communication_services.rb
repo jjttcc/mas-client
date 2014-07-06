@@ -15,7 +15,7 @@ module MasCommunicationServices
     :tradable_data, :indicator_data, :analyzers
 
   # start and end date for analysis
-  attr_accessor :current_start_date, :current_end_date
+  attr_accessor :analysis_start_date, :analysis_end_date
 
   public ## Access
 
@@ -119,34 +119,22 @@ module MasCommunicationServices
     end
   end
 
-#!!!!!IDEA: Use a pair of settable attribute for start/end datetime.  They
-#will be used by this method by default unless start_date/end_date are
-#provided as arguments.
 #!!!!!!TO-DO: Use Logger for debug-logging.
   # Request that analysis be performed by the specified list of analyzers
   # on the tradable specified by 'symbol' for the specified date/time range.
   #type :in => [Array, String, Date (optional), Date (optional)]
   pre "logged in" do logged_in end
   pre "symbol valid" do |alist, sym| sym != nil and sym.length > 0 end
-  def request_analysis(analyzers, symbol, start_date = current_start_date,
-                       end_date = current_end_date)
+  def request_analysis(analyzers, symbol, start_date = analysis_start_date,
+                       end_date = analysis_end_date)
     ids = analyzers.map do |analyzer|
       analyzer.id
     end
-puts "analyzing with these analyzers:"
-analyzers.each do |a|
-  puts "#{a.id}\t#{a.name}"
-end
-#!!!!!!in-progress work/experimentation: Hard-code now-based strings for now.
-#!!!!! [start_date/end_date arg types may change]!!!
-    #!!!!old - for testing: dates = ['now - 12 months', 'now']
     sdate = sprintf "%04d/%02d/%02d", start_date.year, start_date.month,
       start_date.day
     edate = sprintf "%04d/%02d/%02d", end_date.year, end_date.month,
       end_date.day
     dates = [sdate, edate]
-#dates = [start_date.to_s, end_date.to_s]
-puts "sending dates: "; p dates
     request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                   dates + ids)
     execute_request(request)
@@ -249,15 +237,13 @@ puts "request_analysis - response: ", last_response
   # it to set the session_key.
   post "logged in" do logged_in end
   post :valid_session_key do session_key =~ /^\d+/ end
-  type @current_start_date => DateTime, @current_end_date => DateTime
+  type @analysis_start_date => DateTime, @analysis_end_date => DateTime
   def initialize(*args)
     initialize_communication(*args)
     execute_request(initial_message)
     @session_key = key_from_response
-    current_start_date = DateTime.now
-    current_end_date = DateTime.now
-p current_start_date.class
-p current_start_date.is_a?(DateTime)
+    analysis_start_date = DateTime.now
+    analysis_end_date = DateTime.now
   end
 
   # Execute the specified 'request' to the server and call process_response

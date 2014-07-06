@@ -115,11 +115,9 @@ class TestMasClient < MiniTest::Unit::TestCase
     symbol = 'ibm'
     $client.request_analyzers(symbol, MasClient::DAILY)
     selected_analyzers = $client.analyzers[1..3]
-p 'selected analyzers: ', selected_analyzers
     now = DateTime.now
     enddt = Date.new(now.year, now.month, now.day)
     startdt = enddt - 365
-puts "start, end: #{startdt}, #{enddt}"
     $client.current_start_date = enddt - 60
     $client.current_end_date = enddt
     $client.request_analysis(selected_analyzers, symbol)

@@ -28,7 +28,6 @@ class TestMasClient < MiniTest::Unit::TestCase
       InitialSetup.new
     end
     if not $fin_set
-#      ObjectSpace.define_finalizer(self, method(:cleanup))
       ObjectSpace.define_finalizer(self, proc {
         if $client.logged_in
           puts "LOGGING OUT"
@@ -98,6 +97,7 @@ class TestMasClient < MiniTest::Unit::TestCase
   end
 
   def test_indicator_data
+    # ('yearly' skipped due to not enough input data.)
 #    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
     ['daily', 'weekly', 'quarterly'].each do |period|
       $client.request_indicator_data("ibm", 1, period)
@@ -142,7 +142,7 @@ class TestMasClient < MiniTest::Unit::TestCase
     events = $client.analysis_result
     if events.length > 1
       if verbose
-        puts "#{events.length} events:"
+        puts "\n#{events.length} events:"
       end
       events.each do |e|
         if verbose
@@ -155,7 +155,7 @@ class TestMasClient < MiniTest::Unit::TestCase
     events = $client.analysis_result
     if events.length > 1
       if verbose
-        puts "first and last (of #{events.length}) events:"
+        puts "\nfirst and last (of #{events.length}) events:"
       end
       [events[0], events[-1]].each do |e|
         if verbose
@@ -169,15 +169,6 @@ class TestMasClient < MiniTest::Unit::TestCase
   def test_logout
     $client.logout
     assert ! $client.logged_in
-  end
-
-  def cleanup
-    print "AFTER\n"
-    if $client.logged_in
-      puts "LOGGING OUT"
-      # Cleanup
-      $client.logout
-    end
   end
 
 end

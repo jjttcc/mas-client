@@ -130,6 +130,7 @@ module MasCommunicationServices
   pre "symbol valid" do |alist, sym| sym != nil and sym.length > 0 end
   def request_analysis(analyzers, symbol, start_date = analysis_start_date,
                        end_date = analysis_end_date)
+
     ids = analyzers.map do |analyzer|
       analyzer.id
     end
@@ -141,16 +142,12 @@ module MasCommunicationServices
     request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                   dates + ids)
     execute_request(request, method(:process_data_response))
-#!!!!puts "request_analysis - response: ", last_response
     lines = list_from_response
-#!!!!puts "[ra] lines: ", lines
     @analysis_result = lines.map do |line|
       record = line.split(MESSAGE_COMPONENT_SEPARATOR)
-#!!!!p "[ra] record: ", record
       TradableEvent.new(record[DATE_I], record[TIME_I], record[ID_I],
                         record[TYPE_I], analyzers)
     end
-#!!!!p "analysis_result: ", analysis_result
   end
 
   protected
@@ -298,7 +295,8 @@ module MasCommunicationServices
 
 end
 
-#### !!!!Delete this stuff when it's no longer needed for reference.
+#### !!!!TO-DO: Use the string below as a reminder to properly implement complete
+#### !!!!setting of time periods on initial login with the server.
 =begin
 INITSTR = "6	0	start_date	daily	now - 9 months	start_date	hourly	now - 2 months	start_date	30-minute	now - 55 days	start_date	20-minute	now - 1 month	start_date	15-minute	now - 1 month	start_date	10-minute	now - 18 days	start_date	5-minute	now - 18 days	start_date	weekly	now - 4 years	start_date	monthly	now - 8 years	start_date	quarterly	now - 10 years	end_date	daily	now\a"
 =end

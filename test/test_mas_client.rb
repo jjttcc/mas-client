@@ -118,8 +118,8 @@ class TestMasClient < MiniTest::Unit::TestCase
     now = DateTime.now
     enddt = Date.new(now.year, now.month, now.day)
     startdt = enddt - 365
-    $client.current_start_date = enddt - 60
-    $client.current_end_date = enddt
+    $client.analysis_start_date = enddt - 60
+    $client.analysis_end_date = enddt
     $client.request_analysis(selected_analyzers, symbol)
     $client.request_analysis(selected_analyzers, symbol, startdt, enddt)
   end

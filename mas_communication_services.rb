@@ -3,6 +3,7 @@ require 'ruby_contracts'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
 require_relative 'tradable_analyzer'
+require_relative 'tradable_event'
 
 # Services/tools for communication with the Market-Analysis server
 module MasCommunicationServices
@@ -12,7 +13,7 @@ module MasCommunicationServices
   public
 
   attr_reader :session_key, :symbols, :indicators, :period_types,
-    :tradable_data, :indicator_data, :analyzers
+    :tradable_data, :indicator_data, :analyzers, :analysis_result
 
   # start and end date for analysis
   attr_accessor :analysis_start_date, :analysis_end_date
@@ -119,6 +120,8 @@ module MasCommunicationServices
     end
   end
 
+  DATE_I = 0; TIME_I = 1; ID_I = 2; TYPE_I = 3
+
 #!!!!!!TO-DO: Use Logger for debug-logging.
   # Request that analysis be performed by the specified list of analyzers
   # on the tradable specified by 'symbol' for the specified date/time range.
@@ -137,8 +140,17 @@ module MasCommunicationServices
     dates = [sdate, edate]
     request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                   dates + ids)
-    execute_request(request)
-puts "request_analysis - response: ", last_response
+    execute_request(request, method(:process_data_response))
+#!!!!puts "request_analysis - response: ", last_response
+    lines = list_from_response
+#!!!!puts "[ra] lines: ", lines
+    @analysis_result = lines.map do |line|
+      record = line.split(MESSAGE_COMPONENT_SEPARATOR)
+#!!!!p "[ra] record: ", record
+      TradableEvent.new(record[DATE_I], record[TIME_I], record[ID_I],
+                        record[TYPE_I], analyzers)
+    end
+#!!!!p "analysis_result: ", analysis_result
   end
 
   protected

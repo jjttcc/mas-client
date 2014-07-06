@@ -19,6 +19,7 @@ class InitialSetup
 end
 
 sc = InitialSetup.new
+$fin_set = false
 
 class TestMasClient < MiniTest::Unit::TestCase
   def setup
@@ -26,6 +27,21 @@ class TestMasClient < MiniTest::Unit::TestCase
       # test_logout has been called - need to re-login:
       InitialSetup.new
     end
+    if not $fin_set
+#      ObjectSpace.define_finalizer(self, method(:cleanup))
+      ObjectSpace.define_finalizer(self, proc {
+        if $client.logged_in
+          puts "LOGGING OUT"
+          # Cleanup
+          $client.logout
+        end
+      })
+      $fin_set = true
+    end
+  end
+
+  def verbose
+    ENV['VERBOSE']
   end
 
   def test_key
@@ -104,9 +120,11 @@ class TestMasClient < MiniTest::Unit::TestCase
     if analyzers.length == 0
       puts "<<<<<No analyzers found>>>>>"
     else
-      puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
+      if verbose
+        puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
+      end
       analyzers.each do |a|
-        p a
+        assert_kind_of TradableAnalyzer, a
       end
     end
   end
@@ -114,25 +132,52 @@ class TestMasClient < MiniTest::Unit::TestCase
   def test_analysis
     symbol = 'ibm'
     $client.request_analyzers(symbol, MasClient::DAILY)
-    selected_analyzers = $client.analyzers[1..3]
+    selected_analyzers = $client.analyzers[1..6]
     now = DateTime.now
     enddt = Date.new(now.year, now.month, now.day)
     startdt = enddt - 365
     $client.analysis_start_date = enddt - 60
     $client.analysis_end_date = enddt
     $client.request_analysis(selected_analyzers, symbol)
+    events = $client.analysis_result
+    if events.length > 1
+      if verbose
+        puts "#{events.length} events:"
+      end
+      events.each do |e|
+        if verbose
+          puts "<<#{e}>>"
+        end
+        assert_kind_of TradableEvent, e
+      end
+    end
     $client.request_analysis(selected_analyzers, symbol, startdt, enddt)
+    events = $client.analysis_result
+    if events.length > 1
+      if verbose
+        puts "first and last (of #{events.length}) events:"
+      end
+      [events[0], events[-1]].each do |e|
+        if verbose
+          puts "<<#{e}>>"
+        end
+        assert_kind_of TradableEvent, e
+      end
+    end
   end
 
   def test_logout
     $client.logout
+    assert ! $client.logged_in
   end
 
-  def after
+  def cleanup
+    print "AFTER\n"
     if $client.logged_in
       puts "LOGGING OUT"
       # Cleanup
       $client.logout
     end
   end
+
 end

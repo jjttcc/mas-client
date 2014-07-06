@@ -5,8 +5,9 @@ require_relative './test_setup'
 class InitialSetup
   def initialize
     # Source the .env file to get the $MASPORT env. var.
-    source_env_from('./.env')
-    mas_script = File::dirname($0) + '/startmas'
+    testpath = File::dirname($0)
+    source_env_from(testpath + '/.env')
+    mas_script = testpath + '/startmas'
     if ! system mas_script; then exit 222 end
     port = ENV['MASPORT'] || 5001
     $client = MasClient.new(port)
@@ -96,7 +97,44 @@ class TestMasClient < MiniTest::Unit::TestCase
     end
   end
 
+  def test_analyzer_list
+    $client.request_analyzers("ibm", MasClient::DAILY)
+    analyzers = $client.analyzers
+    assert analyzers.class == [].class, "analyzers is an array"
+    if analyzers.length == 0
+      puts "<<<<<No analyzers found>>>>>"
+    else
+      puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
+      analyzers.each do |a|
+        p a
+      end
+    end
+  end
+
+  def test_analysis
+    symbol = 'ibm'
+    $client.request_analyzers(symbol, MasClient::DAILY)
+    selected_analyzers = $client.analyzers[1..3]
+p 'selected analyzers: ', selected_analyzers
+    now = DateTime.now
+    enddt = Date.new(now.year, now.month, now.day)
+    startdt = enddt - 365
+puts "start, end: #{startdt}, #{enddt}"
+    $client.current_start_date = enddt - 60
+    $client.current_end_date = enddt
+    $client.request_analysis(selected_analyzers, symbol)
+    $client.request_analysis(selected_analyzers, symbol, startdt, enddt)
+  end
+
   def test_logout
     $client.logout
+  end
+
+  def after
+    if $client.logged_in
+      puts "LOGGING OUT"
+      # Cleanup
+      $client.logout
+    end
   end
 end

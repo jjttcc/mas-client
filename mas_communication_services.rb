@@ -134,10 +134,12 @@ module MasCommunicationServices
     ids = analyzers.map do |analyzer|
       analyzer.id
     end
-    sdate = sprintf "%04d/%02d/%02d", start_date.year, start_date.month,
-      start_date.day
-    edate = sprintf "%04d/%02d/%02d", end_date.year, end_date.month,
-      end_date.day
+    sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
+      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,
+      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.day
+    edate = sprintf "%04d%c%02d%c%02d", end_date.year,
+      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.month,
+      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.day
     dates = [sdate, edate]
     request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                   dates + ids)

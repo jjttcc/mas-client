@@ -132,4 +132,6 @@ module MasCommunicationProtocol
 
   DATA_IDX          = 1 # Expected location, in server message, of result data
 
+  ANALYSIS_REQ_DATE_FIELD_SEPARATOR = '/'
+
 end

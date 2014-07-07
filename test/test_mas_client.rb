@@ -12,14 +12,19 @@ class InitialSetup
     if ! system mas_script; then exit 222 end
     port = ENV['MASPORT'] || 5001
     if ENV['OPTIMIZE']
+      if verbose then puts "Using MasClientOptimized" end
       $client = MasClientOptimized.new(port)
     else
+      if verbose then puts "Using MasClient" end
       $client = MasClient.new(port)
     end
     if not $client.logged_in
       puts "Login of client failed - aborting test"
       exit 95
     end
+  end
+  def verbose
+    ENV['VERBOSE']
   end
 end
 

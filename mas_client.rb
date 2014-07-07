@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'socket'
+require 'logger'
 require 'ruby_contracts'
 require_relative 'mas_communication_services'
 
@@ -16,6 +17,8 @@ class MasClient
 
   private
 
+  @@log = Logger.new(STDERR)
+
   attr_reader :socket
 
   def initialize_communication(port)
@@ -24,12 +27,13 @@ class MasClient
   end
 
   def send(msg)
-    @socket.write(msg)
-    @socket.close_write
+    socket.write(msg)
+    if close_after_writing then socket.close_write end
   end
 
   def receive_response
-    @last_response = @socket.read
+    @last_response = socket.read
+#@@log.debug("received '" + @last_response)
   end
 
   def begin_communication
@@ -37,7 +41,13 @@ class MasClient
   end
 
   def end_communication
-    @socket.close
+    socket.close
+  end
+
+  private ## Hook routines
+
+  def close_after_writing
+    true
   end
 
 end

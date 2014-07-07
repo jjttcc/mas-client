@@ -1,5 +1,6 @@
 require 'minitest/autorun'
 require_relative '../mas_client'
+require_relative '../mas_client_optimized'
 require_relative './test_setup'
 
 class InitialSetup
@@ -10,7 +11,11 @@ class InitialSetup
     mas_script = testpath + '/startmas'
     if ! system mas_script; then exit 222 end
     port = ENV['MASPORT'] || 5001
-    $client = MasClient.new(port)
+    if ENV['OPTIMIZE']
+      $client = MasClientOptimized.new(port)
+    else
+      $client = MasClient.new(port)
+    end
     if not $client.logged_in
       puts "Login of client failed - aborting test"
       exit 95

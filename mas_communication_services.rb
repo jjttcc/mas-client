@@ -273,9 +273,7 @@ module MasCommunicationServices
     else
       process_response(last_response)
     end
-    if response_ok?
-      puts "Everything is OK!"
-    else
+    if not response_ok?
       raise "Server returned error status: #{last_response}"
     end
   end

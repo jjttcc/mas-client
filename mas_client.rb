@@ -33,7 +33,6 @@ class MasClient
 
   def receive_response
     @last_response = socket.read
-#@@log.debug("received '" + @last_response)
   end
 
   def begin_communication

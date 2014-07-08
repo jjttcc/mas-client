@@ -28,6 +28,9 @@ class MasClientOptimized < MasClient
   def begin_communication
     if socket == nil || socket.eof?
       if socket != nil then
+        if ENV['VERBOSE']
+          @@log.debug('[bc] socket!=nil; eof: ' + (socket.eof?).to_s)
+        end
         socket.close
       end
       @socket = TCPSocket.new(@host, @port)

@@ -13,10 +13,10 @@ class InitialSetup
     port = ENV['MASPORT'] || 5001
     if ENV['OPTIMIZE']
       if verbose then puts "Using MasClientOptimized" end
-      $client = MasClientOptimized.new(port)
+      $client = MasClientOptimized.new('localhost', port)
     else
       if verbose then puts "Using MasClient" end
-      $client = MasClient.new(port)
+      $client = MasClient.new('localhost', port)
     end
     if not $client.logged_in
       puts "Login of client failed - aborting test"

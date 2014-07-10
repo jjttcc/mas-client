@@ -69,6 +69,9 @@ module MasCommunicationProtocol
   WARNING             = 104
   # Response indicating that a non-fatal error occurred
 
+  OK_WILL_CLOSE       = 201
+  # No errors and the server closed the socket after the last send
+
   public  ### Server response strings
 
   NO_OPEN_SESSION_STATE = "no_open"

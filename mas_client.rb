@@ -13,17 +13,16 @@ class MasClient
 
   public
 
-  attr_reader :host, :port
+  attr_reader :host, :port, :close_after_writing
 
   private
 
-  @@log = Logger.new(STDERR)
-
   attr_reader :socket
 
-  def initialize_communication(port)
-    @host = 'localhost'
+  def initialize_communication(host, port)
+    @host = host
     @port = port
+    @close_after_writing = true
   end
 
   def send(msg)
@@ -36,17 +35,15 @@ class MasClient
   end
 
   def begin_communication
-    @socket = TCPSocket.new(@host, @port)
+    if socket == nil or close_after_writing
+      @socket = TCPSocket.new(@host, @port)
+    end
   end
 
   def end_communication
-    socket.close
-  end
-
-  private ## Hook routines
-
-  def close_after_writing
-    true
+    if close_after_writing
+      socket.close
+    end
   end
 
 end

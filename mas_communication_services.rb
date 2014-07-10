@@ -114,15 +114,17 @@ module MasCommunicationServices
                                   symbol, period_type])
     execute_request(request, method(:process_data_response))
     lines = list_from_response
-    @analyzers = lines.map do |line|
-       parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
-       TradableAnalyzer.new(parts[name_index], parts[id_index])
+    @analyzers = []
+    if lines.length > 0
+      @analyzers = lines.map do |line|
+        parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
+        TradableAnalyzer.new(parts[name_index], parts[id_index])
+      end
     end
   end
 
   DATE_I = 0; TIME_I = 1; ID_I = 2; TYPE_I = 3
 
-#!!!!!!TO-DO: Use Logger for debug-logging.
   # Request that analysis be performed by the specified list of analyzers
   # on the tradable specified by 'symbol' for the specified date/time range.
   #type :in => [Array, String, Date (optional), Date (optional)]
@@ -131,30 +133,36 @@ module MasCommunicationServices
   def request_analysis(analyzers, symbol, start_date = analysis_start_date,
                        end_date = analysis_end_date)
 
-    ids = analyzers.map do |analyzer|
-      analyzer.id
-    end
-    sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
-      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,
-      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.day
-    edate = sprintf "%04d%c%02d%c%02d", end_date.year,
-      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.month,
-      ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.day
-    dates = [sdate, edate]
-    request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
-                                  dates + ids)
-    execute_request(request, method(:process_data_response))
-    lines = list_from_response
-    @analysis_result = lines.map do |line|
-      record = line.split(MESSAGE_COMPONENT_SEPARATOR)
-      TradableEvent.new(record[DATE_I], record[TIME_I], record[ID_I],
-                        record[TYPE_I], analyzers)
+    if analyzers == nil
+      @@log.warn('request_analysis called before request_analyzers')
+      @analysis_result = []
+    else
+      ids = analyzers.map do |analyzer|
+        analyzer.id
+      end
+      sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
+        ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,
+        ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.day
+      edate = sprintf "%04d%c%02d%c%02d", end_date.year,
+        ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.month,
+        ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.day
+      dates = [sdate, edate]
+      request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
+                                    dates + ids)
+      execute_request(request, method(:process_data_response))
+      lines = list_from_response
+      @analysis_result = lines.map do |line|
+        record = line.split(MESSAGE_COMPONENT_SEPARATOR)
+        TradableEvent.new(record[DATE_I], record[TIME_I], record[ID_I],
+                          record[TYPE_I], analyzers)
+      end
     end
   end
 
   protected
 
-  attr_reader :last_response_components, :last_response
+  attr_reader :last_response_components, :last_response,
+    :server_closed_connection
 
   protected ## Hook methods
 
@@ -231,7 +239,9 @@ module MasCommunicationServices
 
   # Was a successful/OK status resported as part of the last response?
   def response_ok?
-    Integer(last_response_components[MSG_STATUS_IDX]) == OK
+    response_code = Integer(last_response_components[MSG_STATUS_IDX])
+#Integer(last_response_components[MSG_STATUS_IDX]) == OK
+    response_code == OK or response_code == OK_WILL_CLOSE
   end
 
   protected ## Utilities
@@ -242,7 +252,18 @@ module MasCommunicationServices
     parts.join(MESSAGE_COMPONENT_SEPARATOR) + EOM
   end
 
+  # Set '@server_closed_connection' from the server's response.
+  def set_server_closed_connection
+    @server_closed_connection = false
+    if last_response_components != nil
+      response_code = Integer(last_response_components[MSG_STATUS_IDX])
+      @server_closed_connection = response_code == OK_WILL_CLOSE
+    end
+  end
+
   private
+
+  @@log = Logger.new(STDERR)
 
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
@@ -273,6 +294,7 @@ module MasCommunicationServices
     else
       process_response(last_response)
     end
+    set_server_closed_connection
     if not response_ok?
       raise "Server returned error status: #{last_response}"
     end

@@ -30,11 +30,12 @@ end
 
 sc = InitialSetup.new
 $fin_set = false
+SLEEP = true
 
 class TestMasClient < MiniTest::Unit::TestCase
   def setup
     if not $client.logged_in
-      # test_logout has been called - need to re-login:
+      # test_logout has been called - must re-login:
       InitialSetup.new
     end
     if not $fin_set
@@ -46,6 +47,9 @@ class TestMasClient < MiniTest::Unit::TestCase
         end
       })
       $fin_set = true
+    end
+    if ENV['SLEEP']
+      sleep rand
     end
   end
 
@@ -177,6 +181,7 @@ class TestMasClient < MiniTest::Unit::TestCase
   end
 
   def test_logout
+    puts "running logout test"
     $client.logout
     assert ! $client.logged_in
   end

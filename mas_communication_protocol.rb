@@ -55,22 +55,38 @@ module MasCommunicationProtocol
   # Response indicating that there was a problem receiving or
   # parsing the client request
 
-  INVALID_PERIOD_TYPE = 105
-  # Response indicating that the server requested data for
-  # a period type that is not in the database
+  OK                  = 102
+  # Response indicating that no errors occurred (server closed socket)
 
   INVALID_SYMBOL      = 103
   # Response indicating that the server requested data for
   # a symbol that is not in the database
 
-  OK                  = 102
-  # Response indicating that no errors occurred
-
   WARNING             = 104
   # Response indicating that a non-fatal error occurred
 
-  OK_WILL_CLOSE       = 201
-  # No errors and the server closed the socket after the last send
+  INVALID_PERIOD_TYPE = 105
+  # Response indicating that the server requested data for
+  # a period type that is not in the database
+
+  ### "will-not-close" (socket) versions of the above codes
+
+  ERROR_WILL_NOT_CLOSE = 201
+  # Response indicating that there was a problem receiving or
+  # parsing the client request and that the active medium (e.g., socket)
+  # will be kept open after this response is sent
+
+  OK_WILL_NOT_CLOSE = 202
+  # "will-not_close" version of OK
+
+  INVALID_SYMBOL_WILL_NOT_CLOSE = 203
+  # "will-not_close" version of INVALID_SYMBOL
+
+  WARNING_WILL_NOT_CLOSE = 204
+  # "will-not_close" version of WARNING
+
+  INVALID_PERIOD_TYPE_WILL_NOT_CLOSE = 205
+  # "will-not_close" version of INVALID_PERIOD_TYPE
 
   public  ### Server response strings
 

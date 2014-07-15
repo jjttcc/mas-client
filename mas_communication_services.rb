@@ -29,11 +29,16 @@ module MasCommunicationServices
   public ## Operations
 
   # Logout from the server.
-  pre "logged in" do logged_in end
+  pre :logged_in do logged_in end
+  post :not_logged_in do not logged_in end
   def logout
     logout_request = constructed_message([LOGOUT_REQUEST, session_key,
-                                  NULL_FIELD])
-    #send_request(logout_request)
+                                          NULL_FIELD])
+    begin_communication
+    send(logout_request)
+    # (No 'receive_response' after logout.)
+    end_communication
+    finish_logout
     @session_key = nil
   end
 
@@ -195,6 +200,11 @@ module MasCommunicationServices
   def end_communication
   end
 
+  # Perform any actions, such as closing the IO medium, needed at the end of
+  # a logout.
+  def finish_logout
+  end
+
   protected ## Constructed client requests
 
   # Initial message to the server to start a session
@@ -240,8 +250,7 @@ module MasCommunicationServices
   # Was a successful/OK status resported as part of the last response?
   def response_ok?
     response_code = Integer(last_response_components[MSG_STATUS_IDX])
-#Integer(last_response_components[MSG_STATUS_IDX]) == OK
-    response_code == OK or response_code == OK_WILL_CLOSE
+    response_code == OK or response_code == OK_WILL_NOT_CLOSE
   end
 
   protected ## Utilities
@@ -257,7 +266,7 @@ module MasCommunicationServices
     @server_closed_connection = false
     if last_response_components != nil
       response_code = Integer(last_response_components[MSG_STATUS_IDX])
-      @server_closed_connection = response_code == OK_WILL_CLOSE
+      @server_closed_connection = response_code == OK
     end
   end
 
@@ -274,6 +283,7 @@ module MasCommunicationServices
     initialize_communication(*args)
     execute_request(initial_message)
     @session_key = key_from_response
+puts "SESSION_KEY: #{session_key} [initialize]"
     analysis_start_date = DateTime.now
     analysis_end_date = DateTime.now
   end

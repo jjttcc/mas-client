@@ -46,4 +46,8 @@ class MasClient
     end
   end
 
+  def finish_logout
+    @socket = nil
+  end
+
 end

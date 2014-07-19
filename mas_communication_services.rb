@@ -1,4 +1,4 @@
-require'date'
+require 'date'
 require 'ruby_contracts'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'

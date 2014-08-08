@@ -272,7 +272,8 @@ module MasCommunicationServices
 
   private
 
-  @@log = Logger.new(STDERR)
+  @@log = Logger.new('mas-client.log', 1, 1024000)
+
 
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
@@ -283,7 +284,6 @@ module MasCommunicationServices
     initialize_communication(*args)
     execute_request(initial_message)
     @session_key = key_from_response
-puts "SESSION_KEY: #{session_key} [initialize]"
     analysis_start_date = DateTime.now
     analysis_end_date = DateTime.now
   end

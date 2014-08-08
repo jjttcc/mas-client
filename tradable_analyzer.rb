@@ -14,8 +14,6 @@ class TradableAnalyzer
 
   private
 
-  attr_reader :socket
-
   def initialize(name, id)
     @name = name
     @id = id

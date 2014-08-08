@@ -3,3 +3,9 @@
 *persist
 *persist*orig
 *bck*
+test/.env*
+*.log
+tags
+clientex1
+old
+cached_data

@@ -1,0 +1,13 @@
+#!/bin/bash
+# vim: expandtab:
+
+iterations=1
+
+if [ $# -gt 0 ]; then iterations=$1; fi
+if [ $iterations -lt 1 ]; then exit 0; fi
+
+i=1
+time while [ $i -le $iterations ]; do
+    ruby test/test_mas_client.rb
+    ((++i))
+done

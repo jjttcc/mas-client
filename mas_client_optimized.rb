@@ -24,6 +24,8 @@ class MasClientOptimized < MasClient
       @last_response = ''
       end_of_message = false
       while not end_of_message
+#!!!!Consider using read_nonblock instead of readpartial (because it's
+#!!!!nonblocking).
         buf = socket.readpartial(READ_LENGTH)
         @last_response << buf
         end_of_message = @last_response[-1] == EOM

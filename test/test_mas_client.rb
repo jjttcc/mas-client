@@ -2,6 +2,7 @@ require 'minitest/autorun'
 require_relative '../mas_client/mas_client'
 require_relative '../mas_client/mas_client_optimized'
 require_relative './test_setup'
+require_relative './tradable_analyzer'
 
 class TradableObjectFactory
   # A new TradableAnalyzer with the specified name and id

@@ -2,7 +2,6 @@ require 'date'
 require 'ruby_contracts'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
-require_relative 'tradable_analyzer'
 require_relative 'tradable_event'
 
 # Services/tools for communication with the Market-Analysis server
@@ -13,7 +12,8 @@ module MasCommunicationServices
   public
 
   attr_reader :session_key, :symbols, :indicators, :period_types,
-    :tradable_data, :indicator_data, :analyzers, :analysis_result
+    :tradable_data, :indicator_data, :analyzers, :analysis_result,
+    :tradable_factory
 
   # start and end date for analysis
   attr_accessor :analysis_start_date, :analysis_end_date
@@ -123,7 +123,8 @@ module MasCommunicationServices
     if lines.length > 0
       @analyzers = lines.map do |line|
         parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
-        TradableAnalyzer.new(parts[name_index], parts[id_index])
+        tradable_factory.new_analyzer(id: parts[id_index],
+                                      name: parts[name_index])
       end
     end
   end
@@ -274,13 +275,16 @@ module MasCommunicationServices
 
   @@log = Logger.new('mas-client.log', 1, 1024000)
 
-
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
+  pre :new_analyzer do |*args| args[0][:factory].respond_to?(:new_analyzer) end
+  pre :host_port do |*args| ! args[0][:host].nil? && ! args[0][:port].nil? end
   post "logged in" do logged_in end
   post :valid_session_key do session_key =~ /^\d+/ end
   type @analysis_start_date => DateTime, @analysis_end_date => DateTime
   def initialize(*args)
+    @tradable_factory = args[0][:factory]
+    args[0].delete(:factory)
     initialize_communication(*args)
     execute_request(initial_message)
     @session_key = key_from_response

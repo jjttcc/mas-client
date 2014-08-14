@@ -3,6 +3,17 @@ require_relative '../mas_client/mas_client'
 require_relative '../mas_client/mas_client_optimized'
 require_relative './test_setup'
 
+class TradableObjectFactory
+  # A new TradableAnalyzer with the specified name and id
+  def new_analyzer(name: name, id: id)
+    TradableAnalyzer.new(name, id)
+  end
+
+  def new_event(name: name, id: id)
+    TradableAnalyzer.new(name, id)
+  end
+end
+
 class InitialSetup
   def initialize
     # Source the .env file to get the $MASPORT env. var.
@@ -13,10 +24,12 @@ class InitialSetup
     port = ENV['MASPORT'] || 5001
     if ENV['OPTIMIZE']
       if verbose then puts "Using MasClientOptimized" end
-      $client = MasClientOptimized.new('localhost', port)
+      $client = MasClientOptimized.new(host: 'localhost', port: port,
+                                       factory: TradableObjectFactory.new)
     else
       if verbose then puts "Using MasClient" end
-      $client = MasClient.new('localhost', port)
+      $client = MasClient.new(host: 'localhost', port: port,
+                                       factory: TradableObjectFactory.new)
     end
     if not $client.logged_in
       puts "Login of client failed - aborting test"

@@ -33,8 +33,6 @@ class TradableEvent
 
   private
 
-  attr_reader :socket
-
   def initialize(date, time, analyzer_id, type_id, analyzers)
     @datetime = DateTime.new(date[0..3].to_i, date[4..5].to_i, date[6..7].to_i,
                              time[0..1].to_i, time[2..3].to_i, time[4..5].to_i)

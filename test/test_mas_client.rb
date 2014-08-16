@@ -16,6 +16,25 @@ class TradableObjectFactory
 end
 
 class InitialSetup
+  class MasClientArgs
+    def [](key)
+      result = HASHTABLE[key]
+      if result.nil?
+        HASHTABLE.keys.each do |k|
+          if k.to_s =~ /#{key}/
+            result = HASHTABLE[k]
+          end
+        end
+      end
+      result
+    end
+
+    HASHTABLE = {
+      host: 'localhost', port: ENV['MASPORT'],
+      factory: TradableObjectFactory.new, close_after_w: false,
+    }
+  end
+
   def initialize
     # Source the .env file to get the $MASPORT env. var.
     testpath = File::dirname($0)
@@ -25,8 +44,9 @@ class InitialSetup
     port = ENV['MASPORT'] || 5001
     if ENV['OPTIMIZE']
       if verbose then puts "Using MasClientOptimized" end
-      $client = MasClientOptimized.new(host: 'localhost', port: port,
-                                       factory: TradableObjectFactory.new)
+      $client = MasClientOptimized.new(MasClientArgs.new)
+#      $client = MasClientOptimized.new(host: 'localhost', port: port,
+#                                       factory: TradableObjectFactory.new)
     else
       if verbose then puts "Using MasClient" end
       $client = MasClient.new(host: 'localhost', port: port,
@@ -46,7 +66,7 @@ sc = InitialSetup.new
 $fin_set = false
 SLEEP = true
 
-class TestMasClient < MiniTest::Unit::TestCase
+class TestMasClient < MiniTest::Test
   def setup
     if not $client.logged_in
       # test_logout has been called - must re-login:
@@ -157,16 +177,28 @@ class TestMasClient < MiniTest::Unit::TestCase
     end
   end
 
+  class PerTypeSpec
+    attr_accessor :period_type, :start_date, :end_date
+    def initialize(period_type: MasClient::DAILY,
+                   start_date: DateTime.now.to_date, end_date: nil)
+      local_variables.each do |key|
+        value = eval(key.to_s)
+        instance_variable_set("@#{key}", value) unless value.nil?
+      end
+    end
+  end
+
   def test_analysis
     symbol = 'ibm'
     $client.request_analyzers(symbol, MasClient::DAILY)
     selected_analyzers = $client.analyzers[1..6]
     now = DateTime.now
     enddt = Date.new(now.year, now.month, now.day)
-    startdt = enddt - 365
-    $client.analysis_start_date = enddt - 60
-    $client.analysis_end_date = enddt
-    $client.request_analysis(selected_analyzers, symbol)
+    startdt = enddt - 3650
+    spec = PerTypeSpec.new(period_type: MasClient::DAILY,
+                           start_date: enddt - 960, end_date: enddt)
+    $client.set_period_type_spec(spec)
+    $client.request_analysis(selected_analyzers, symbol, spec.start_date)
     events = $client.analysis_result
     if events.length > 1
       if verbose

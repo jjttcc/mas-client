@@ -11,9 +11,8 @@ class MasClientOptimized < MasClient
 
   private ## Redefinition of inherited methods
 
-  def initialize_communication(host: host, port: port,
-                               close_after_w: false)
-    super(host: host, port: port)
+  def initialize_communication(host, port, close_after_w = false)
+    super(host, port, close_after_w)
     @close_after_writing = close_after_w
   end
 

@@ -1,4 +1,4 @@
-require 'date'
+require 'active_support/time'
 require 'ruby_contracts'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
@@ -9,16 +9,13 @@ module MasCommunicationServices
   include MasCommunicationProtocol, TimePeriodTypeConstants
   include Contracts::DSL
 
-  public
+  public ### Public attributes
 
   attr_reader :session_key, :symbols, :indicators, :period_types,
     :tradable_data, :indicator_data, :analyzers, :analysis_result,
-    :tradable_factory
+    :mas_session
 
-  # start and end date for analysis
-  attr_accessor :analysis_start_date, :analysis_end_date
-
-  public ## Access
+  public ### Access
 
   # Is this object currently logged in to the server with a valid session
   # key?
@@ -26,11 +23,27 @@ module MasCommunicationServices
     session_key != nil and session_key.length > 0
   end
 
-  public ## Operations
+  type :in => String
+  def period_type_spec_for(period_type)
+    result = nil
+    if period_type_specs != nil
+      result = period_type_specs[period_type]
+    end
+  end
+
+  public  ###  Element change
+
+  pre :pspec_valid do |ps| valid_period_type_spec(ps) end
+  def set_period_type_spec(pspec)
+    @period_type_specs[pspec.period_type] = pspec
+  end
+
+  public ### Operations
 
   # Logout from the server.
   pre :logged_in do logged_in end
   post :not_logged_in do not logged_in end
+  post :nil_key do session_key == nil end
   def logout
     logout_request = constructed_message([LOGOUT_REQUEST, session_key,
                                           NULL_FIELD])
@@ -136,9 +149,7 @@ module MasCommunicationServices
   #type :in => [Array, String, Date (optional), Date (optional)]
   pre "logged in" do logged_in end
   pre "symbol valid" do |alist, sym| sym != nil and sym.length > 0 end
-  def request_analysis(analyzers, symbol, start_date = analysis_start_date,
-                       end_date = analysis_end_date)
-
+  def request_analysis(analyzers, symbol, start_date, end_date = nil)
     if analyzers == nil
       @@log.warn('request_analysis called before request_analyzers')
       @analysis_result = []
@@ -149,9 +160,13 @@ module MasCommunicationServices
       sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
         ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,
         ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.day
-      edate = sprintf "%04d%c%02d%c%02d", end_date.year,
-        ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.month,
-        ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.day
+      if end_date == nil
+        edate = 'now'
+      else
+        edate = sprintf "%04d%c%02d%c%02d", end_date.year,
+          ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.month,
+          ANALYSIS_REQ_DATE_FIELD_SEPARATOR, end_date.day
+      end
       dates = [sdate, edate]
       request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                     dates + ids)
@@ -165,12 +180,44 @@ module MasCommunicationServices
     end
   end
 
-  protected
+  public ### Utilities
+
+  # Does 'arg' contain valid period-type specifications?
+  pre :arg_exists do |arg| arg != nil end
+  post :valid_if_absent do |res, arg| implies(arg['period'].nil?, res) end
+  def valid_period_types(arg)
+    result = true
+    ptypes = arg[:period_types]
+    ptypes ||= arg['period.*']
+    if ptypes
+      result = ptypes.respond_to?('[]')
+      if result
+        ptypes.each do |ptype|
+          if not valid_period_type_spec(ptype)
+            result = false
+            break
+          end
+        end
+      end
+    end
+    result
+  end
+
+  # Is 'ptype_spec' a valid period-type specification?
+  pre :arg_exists do |ptype_spec| ptype_spec != nil end
+  def valid_period_type_spec(ptype_spec)
+    ptype_spec.respond_to?(:period_type) and
+      ptype_spec.respond_to?(:start_date) and
+      ptype_spec.respond_to?(:end_date)
+  end
+
+  protected ### Non-public attributes
 
   attr_reader :last_response_components, :last_response,
-    :server_closed_connection
+    :server_closed_connection, :period_type_specs, :tradable_factory
 
-  protected ## Hook methods
+
+  protected ### Hook methods
 
   # Send 'msg' to the server.
   type :in => String
@@ -206,18 +253,36 @@ module MasCommunicationServices
   def finish_logout
   end
 
-  protected ## Constructed client requests
+  protected ### Constructed client requests
 
   # Initial message to the server to start a session
   type :out => String
   post "not empty" do |result| result.length > 0 end
   post "result ends in EOM" do |result| result[-1] == EOM end
   def initial_message
-    constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY, START_DATE,
-                         DAILY, 'now - 36 months'])
+    specs = period_type_specs
+    result = ''
+    if specs != nil && ! specs.empty?
+      Time.zone = 'UTC'; now = Time.zone.now.to_date
+      message_components = [LOGIN_REQUEST, DUMMY_SESSION_KEY]
+      specs.values.each do |spec|
+        message_components << [START_DATE, spec.period_type,
+           "now - #{(now - spec.start_date.to_date).floor} days"]
+        end_spec = 'now'
+        if spec.end_date != nil
+          end_spec << " - #{(now - spec.end_date.to_date).floor} days"
+        end
+        message_components << [END_DATE, spec.period_type, end_spec]
+      end
+      result = constructed_message(message_components)
+    else
+      result = constructed_message([LOGIN_REQUEST, DUMMY_SESSION_KEY,
+                                    START_DATE, DAILY, 'now - 36 months'])
+    end
+    result
   end
 
-  protected ## Protocol-related implementation tools
+  protected ### Protocol-related implementation tools
 
   # Process response 'r' (String) and initialize last_response_components
   # with the resulting array.
@@ -254,42 +319,31 @@ module MasCommunicationServices
     response_code == OK or response_code == OK_WILL_NOT_CLOSE
   end
 
-  protected ## Utilities
-
-  # Message, from 'parts' (array of message components), to be sent to the
-  # server, with field-separators and EOM added.
-  def constructed_message(parts)
-    parts.join(MESSAGE_COMPONENT_SEPARATOR) + EOM
-  end
-
-  # Set '@server_closed_connection' from the server's response.
-  def set_server_closed_connection
-    @server_closed_connection = false
-    if last_response_components != nil
-      response_code = Integer(last_response_components[MSG_STATUS_IDX])
-      @server_closed_connection = response_code == OK
-    end
-  end
-
   private
 
   @@log = Logger.new('mas-client.log', 1, 1024000)
 
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
-  pre :new_analyzer do |*args| args[0][:factory].respond_to?(:new_analyzer) end
-  pre :host_port do |*args| ! args[0][:host].nil? && ! args[0][:port].nil? end
+  pre :new_analyzer do |args| args[:factory].respond_to?(:new_analyzer) end
+  pre :host_port do |args| ! args[:host].nil? && ! args[:port].nil? end
+  pre :valid_period_types do |args| valid_period_types(args) end
   post "logged in" do logged_in end
   post :valid_session_key do session_key =~ /^\d+/ end
-  type @analysis_start_date => DateTime, @analysis_end_date => DateTime
-  def initialize(*args)
-    @tradable_factory = args[0][:factory]
-    args[0].delete(:factory)
-    initialize_communication(*args)
-    execute_request(initial_message)
-    @session_key = key_from_response
-    analysis_start_date = DateTime.now
-    analysis_end_date = DateTime.now
+  type @session_key => String
+  def initialize(args)
+    @tradable_factory = args[:factory]
+    @mas_session = args[:mas_session]
+    if mas_session
+      @session_key = mas_session.mas_session_key.to_s
+    end
+    init_ptype_specs(args['period.*type'])
+    initialize_communication(args[:host], args[:port], args[:close_after_w])
+    if mas_session.nil?
+      # No mas session yet - need to log in.
+      execute_request(initial_message)
+      @session_key = key_from_response
+    end
   end
 
   # Execute the specified 'request' to the server and call process_response
@@ -329,10 +383,32 @@ module MasCommunicationServices
     @last_response_components = response.split(MESSAGE_COMPONENT_SEPARATOR, 2)
   end
 
-end
+  protected ### Utilities
 
-#### !!!!TO-DO: Use the string below as a reminder to properly implement complete
-#### !!!!setting of time periods on initial login with the server.
-=begin
-INITSTR = "6	0	start_date	daily	now - 9 months	start_date	hourly	now - 2 months	start_date	30-minute	now - 55 days	start_date	20-minute	now - 1 month	start_date	15-minute	now - 1 month	start_date	10-minute	now - 18 days	start_date	5-minute	now - 18 days	start_date	weekly	now - 4 years	start_date	monthly	now - 8 years	start_date	quarterly	now - 10 years	end_date	daily	now\a"
-=end
+  # Message, from 'parts' (array of message components), to be sent to the
+  # server, with field-separators and EOM added.
+  def constructed_message(parts)
+    parts.join(MESSAGE_COMPONENT_SEPARATOR) + EOM
+  end
+
+  # Set '@server_closed_connection' from the server's response.
+  def set_server_closed_connection
+    @server_closed_connection = false
+    if last_response_components != nil
+      response_code = Integer(last_response_components[MSG_STATUS_IDX])
+      @server_closed_connection = response_code == OK
+    end
+  end
+
+  def init_ptype_specs(specs)
+    if @period_type_specs.nil?
+      @period_type_specs = {}
+    end
+    if specs != nil
+      specs.each do |s|
+        @period_type_specs[s.period_type] = s
+      end
+    end
+  end
+
+end

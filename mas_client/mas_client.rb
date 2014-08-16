@@ -19,7 +19,7 @@ class MasClient
 
   attr_reader :socket
 
-  def initialize_communication(host: host, port: port)
+  def initialize_communication(host, port, close_after_writing_dummy)
     @host = host
     @port = port
     @close_after_writing = true

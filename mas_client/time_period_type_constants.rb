@@ -3,14 +3,14 @@ module TimePeriodTypeConstants
 
   public
 
-  YEARLY         = "yearly"
   # Name of the yearly time period type
+  YEARLY         = "yearly"
 
-  QUARTERLY      = "quarterly"
   # Name of the quarterly time period type
+  QUARTERLY      = "quarterly"
 
-  MONTHLY        = "monthly"
   # etc...
+  MONTHLY        = "monthly"
 
   WEEKLY         = "weekly"
 
@@ -32,8 +32,8 @@ module TimePeriodTypeConstants
 
   HOURLY         = "hourly"
 
-  INVALID        = "Invalid type"
   # Name of invalid period types
+  INVALID        = "Invalid type"
 
   @@period_types = [DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY,
                     ONE_MINUTE, TWO_MINUTE, FIVE_MINUTE, TEN_MINUTE,

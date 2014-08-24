@@ -144,6 +144,31 @@ class TestMasClient < MiniTest::Test
     end
   end
 
+  def test_tradable_data_with_times
+    now = DateTime.now.to_date
+    # (+ 1 to make it tomorrow)
+    enddt = now + 1
+    start_date = enddt - 365*2
+    # Test with both a nil and a real end-date.
+    [nil, enddt].each do |end_date|
+      ['daily', 'weekly'].each do |period|
+        $client.request_tradable_data("ibm", period, start_date, end_date)
+        assert $client.tradable_data.length > 0
+        data = $client.tradable_data
+        first_record = data[0]
+        last_record = data[-1]
+        [first_record, last_record].each do |record|
+          assert record.length == 6
+          assert_match /^\d{8}$/, record[0], "date is 8 chars"
+          (1..4).each do |i|
+            assert_match /^\d+(\.\d+)?$/, record[i], "o/h/l/c format"
+          end
+          assert_match /^\d+$/, record[5], "volume is integer"
+        end
+      end
+    end
+  end
+
   def test_indicator_data
     # ('yearly' skipped due to not enough input data.)
 #    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
@@ -157,6 +182,28 @@ class TestMasClient < MiniTest::Test
         assert record.length == 2
         assert_match /^\d{8}$/, record[0], "date is 8 chars"
         assert_match /^\d+(\.\d+)?$/, record[1], "float format"
+      end
+    end
+  end
+
+  def test_indicator_data_with_times
+    now = DateTime.now.to_date
+    # (+ 1 to make it tomorrow)
+    enddt = now + 1
+    start_date = enddt - 365*2
+    # Test with both a nil and a real end-date.
+    [nil, enddt].each do |end_date|
+      ['daily', 'weekly'].each do |period|
+        $client.request_indicator_data("ibm", 1, period, start_date, end_date)
+        assert $client.indicator_data.length > 0, "#{period} data length"
+        data = $client.indicator_data
+        first_record = data[0]
+        last_record = data[-1]
+        [first_record, last_record].each do |record|
+          assert record.length == 2
+          assert_match /^\d{8}$/, record[0], "date is 8 chars"
+          assert_match /^\d+(\.\d+)?$/, record[1], "float format"
+        end
       end
     end
   end

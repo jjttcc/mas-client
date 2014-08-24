@@ -58,6 +58,7 @@ module MasCommunicationServices
   # Request all available tradable symbols from the server and initialize the
   # 'symbols' attribute with this list.
   pre "logged in" do logged_in end
+  post :symbols_exist do symbols != nil end
   type @symbols => Array
   def request_symbols
     sym_request = constructed_message([TRADABLE_LIST_REQUEST, session_key,
@@ -94,9 +95,16 @@ module MasCommunicationServices
   pre "logged in" do logged_in end
   pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) end
-  def request_tradable_data(symbol, period_type)
-    data_request = constructed_message([TRADABLE_DATA_REQUEST, session_key,
-                                        symbol, period_type])
+  type @tradable_data => Array
+  def request_tradable_data(symbol, period_type, start_date = nil,
+                            end_date = nil)
+    msg_parts = [TRADABLE_DATA_REQUEST, session_key, symbol, period_type]
+    if start_date != nil
+      msg_parts[0] = TIME_DELIMITED_TRADABLE_DATA_REQUEST
+      msg_parts << date_spec(start_date, end_date)
+#!!!![and TIME_DELIMITED_INDICATOR_DATA_REQUEST for request_indicators]!!!
+    end
+    data_request = constructed_message(msg_parts)
     execute_request(data_request, method(:process_data_response))
     lines = list_from_response
     @tradable_data = lines.map do |line|
@@ -106,13 +114,19 @@ module MasCommunicationServices
 
   # Request indicator - for indicator_id - data for the 'symbol' at
   # 'period_type'.
-  type :in => [String, Integer, String]
   pre "logged in" do logged_in end
   pre "args valid" do |sym, ind_id, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) and ind_id >= 0 end
-  def request_indicator_data(symbol, indicator_id, period_type)
-    data_request = constructed_message([INDICATOR_DATA_REQUEST, session_key,
-                                        indicator_id, symbol, period_type])
+  def request_indicator_data(symbol, indicator_id, period_type,
+                             start_date = nil, end_date = nil)
+
+    msg_parts = [INDICATOR_DATA_REQUEST, session_key, indicator_id,
+                 symbol, period_type]
+    if start_date != nil
+      msg_parts[0] = TIME_DELIMITED_INDICATOR_DATA_REQUEST
+      msg_parts << date_spec(start_date, end_date)
+    end
+    data_request = constructed_message(msg_parts)
     execute_request(data_request, method(:process_data_response))
     lines = list_from_response
     @indicator_data = lines.map do |line|
@@ -184,7 +198,8 @@ module MasCommunicationServices
 
   # Does 'arg' contain valid period-type specifications?
   pre :arg_exists do |arg| arg != nil end
-  post :valid_if_absent do |res, arg| implies(arg['period'].nil?, res) end
+  post :valid_if_absent do |res, arg|
+    implies(arg[:period_types].nil? && arg['period.*'].nil?, res) end
   def valid_period_types(arg)
     result = true
     ptypes = arg[:period_types]
@@ -340,7 +355,7 @@ module MasCommunicationServices
     init_ptype_specs(args['period.*type'])
     initialize_communication(args[:host], args[:port], args[:close_after_w])
     if mas_session.nil?
-      # No mas session yet - need to log in.
+      @@log.debug('No mas session yet - need to log in.')
       execute_request(initial_message)
       @session_key = key_from_response
     end
@@ -409,6 +424,19 @@ module MasCommunicationServices
         @period_type_specs[s.period_type] = s
       end
     end
+  end
+
+  # start and end date (end can be nil) in the format expected by the
+  # server
+  pre :start_date_exists do |sdt| sdt != nil end
+  def date_spec(start_date, end_date)
+    date_sep = DATA_REQ_DATE_FIELD_SEPARATOR
+    format = "%0Y#{date_sep}%0m#{date_sep}%0d"
+    result = start_date.strftime(format)
+    if end_date != nil
+      result += START_END_DATE_SEPARATOR + end_date.strftime(format)
+    end
+    result
   end
 
 end

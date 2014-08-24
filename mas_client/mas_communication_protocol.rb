@@ -43,6 +43,12 @@ module MasCommunicationProtocol
   # Request for a list of all valid trading period types for a
   # specified tradable
 
+  TIME_DELIMITED_TRADABLE_DATA_REQUEST = 12
+  # Time-delimited request for data for a specified tradable
+
+  TIME_DELIMITED_INDICATOR_DATA_REQUEST = 13
+  # Time-delimited request for indicator data for a specified tradable
+
   public  ### Field separators
 
   MESSAGE_DATE_FIELD_SEPARATOR = ""
@@ -152,5 +158,11 @@ module MasCommunicationProtocol
   DATA_IDX          = 1 # Expected location, in server message, of result data
 
   ANALYSIS_REQ_DATE_FIELD_SEPARATOR = '/'
+
+  DATA_REQ_DATE_FIELD_SEPARATOR = '/'
+
+  # The separator (expected by the server) between start-date[time] and
+  # end-date[time]
+  START_END_DATE_SEPARATOR = ';'
 
 end

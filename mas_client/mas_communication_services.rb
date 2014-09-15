@@ -12,8 +12,8 @@ module MasCommunicationServices
   public ### Public attributes
 
   attr_reader :session_key, :symbols, :indicators, :period_types,
-    :tradable_data, :indicator_data, :analyzers, :analysis_result,
-    :mas_session
+    :tradable_data, :indicator_data, :analyzers, :analysis_data,
+    :mas_session, :indicator_parameters, :analysis_parameters, :object_info
 
   public ### Access
 
@@ -38,7 +38,7 @@ module MasCommunicationServices
     @period_type_specs[pspec.period_type] = pspec
   end
 
-  public ### Operations
+  public ### Client requests
 
   # Logout from the server.
   pre :logged_in do logged_in end
@@ -102,7 +102,6 @@ module MasCommunicationServices
     if start_date != nil
       msg_parts[0] = TIME_DELIMITED_TRADABLE_DATA_REQUEST
       msg_parts << date_spec(start_date, end_date)
-#!!!![and TIME_DELIMITED_INDICATOR_DATA_REQUEST for request_indicators]!!!
     end
     data_request = constructed_message(msg_parts)
     execute_request(data_request, method(:process_data_response))
@@ -117,9 +116,9 @@ module MasCommunicationServices
   pre "logged in" do logged_in end
   pre "args valid" do |sym, ind_id, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) and ind_id >= 0 end
+  type @indicator_data => Array
   def request_indicator_data(symbol, indicator_id, period_type,
                              start_date = nil, end_date = nil)
-
     msg_parts = [INDICATOR_DATA_REQUEST, session_key, indicator_id,
                  symbol, period_type]
     if start_date != nil
@@ -132,6 +131,58 @@ module MasCommunicationServices
     @indicator_data = lines.map do |line|
       line.split(MESSAGE_COMPONENT_SEPARATOR)
     end
+  end
+
+  # Request parameter settings for the specified indicator.
+  type :in => String
+  pre "logged in" do logged_in end
+  pre "args valid" do |ind_name| ind_name.length > 0 end
+  type @indicator_parameters => Array
+  def request_indicator_parameters(indicator_name)
+    request = constructed_message([INDICATOR_PARAMETERS_REQUEST, session_key,
+                                   indicator_name])
+    execute_request(request, method(:process_data_response))
+    @indicator_parameters = []
+    fill_parameters_from_response_list(@indicator_parameters)
+  end
+
+  # Request modification of parameter settings for the specified indicator.
+  # (request format:
+  # <ind-name>\t<param-idx1>:<value1>,<param-idx2>:<value2>...)
+  type :in => [String, String]
+  pre "logged in" do logged_in end
+  pre "args valid" do |ind_name, specs|
+    ind_name.length > 0 && specs.length > 0 end
+  def request_indicator_parameters_modification(indicator_name, param_specs)
+    request = constructed_message([INDICATOR_PARAMETERS_SET_REQUEST,
+                                   session_key, indicator_name, param_specs])
+    execute_request(request)
+  end
+
+  # Request parameter settings for the specified analyzer.
+  type :in => String
+  pre "logged in" do logged_in end
+  pre "args valid" do |ana_name| ana_name.length > 0 end
+  type @analysis_parameters => Array
+  def request_analysis_parameters(analyzer_name)
+    request = constructed_message([ANALYSIS_PARAMETERS_REQUEST, session_key,
+                                   analyzer_name])
+    execute_request(request, method(:process_data_response))
+    @analysis_parameters = []
+    fill_parameters_from_response_list(@analysis_parameters)
+  end
+
+  # Request modification of parameter settings for the specified analyzer.
+  # (request format:
+  # <ana-name>\t<param-idx1>:<value1>,<param-idx2>:<value2>...)
+  type :in => [String, String]
+  pre "logged in" do logged_in end
+  pre "args valid" do |ind_name, specs|
+    ind_name.length > 0 && specs.length > 0 end
+  def request_analysis_parameters_modification(analyzer_name, param_specs)
+    request = constructed_message([ANALYSIS_PARAMETERS_SET_REQUEST,
+                                   session_key, analyzer_name, param_specs])
+    execute_request(request)
   end
 
   # Request data analyzers for the tradable identified by 'symbol'
@@ -166,7 +217,7 @@ module MasCommunicationServices
   def request_analysis(analyzers, symbol, start_date, end_date = nil)
     if analyzers == nil
       @@log.warn('request_analysis called before request_analyzers')
-      @analysis_result = []
+      @analysis_data = []
     else
       ids = analyzers.map do |analyzer|
         analyzer.id
@@ -186,12 +237,38 @@ module MasCommunicationServices
                                     dates + ids)
       execute_request(request, method(:process_data_response))
       lines = list_from_response
-      @analysis_result = lines.map do |line|
+      @analysis_data = lines.map do |line|
         record = line.split(MESSAGE_COMPONENT_SEPARATOR)
-        TradableEvent.new(record[DATE_I], record[TIME_I], record[ID_I],
-                          record[TYPE_I], analyzers)
+        tradable_factory.new_event(date: record[DATE_I], time: record[TIME_I],
+                                   id: record[ID_I], type_id: record[TYPE_I],
+                                   analyzers: analyzers)
       end
     end
+  end
+
+  # Request information for the specified objects.
+  type in: Array
+  pre :logged_in do logged_in end
+  post :object_info_exists do @object_info != nil end
+  post :object_info_strings do implies(object_info.count > 0,
+                                       object_info[0].class == String) end
+  type @object_info => Array
+  def request_object_info(object_list)
+    obj_inf_req = ''
+    (0..object_list.count-2).each do |i|
+      obj_inf_req << "#{object_list[i].type},#{object_list[i].name}"
+      if object_list[i].options != nil
+        obj_inf_req << ",#{object_list[i].options}"
+      end
+      obj_inf_req << "\n"
+    end
+    obj_inf_req << "#{object_list[-1].type},#{object_list[-1].name}"
+    obj_inf_req << ",#{object_list[-1].options}"
+    request = constructed_message([OBJECT_INFO_REQUEST, session_key,
+                                   obj_inf_req])
+    execute_request(request)
+    data = string_blob_from_response
+    @object_info = data.split(OBJECT_SEPARATOR)
   end
 
   public ### Utilities
@@ -318,12 +395,24 @@ module MasCommunicationServices
   # values) to the last successful data request
   pre "last_response_comp exists" do last_response_components != nil end
   pre "last_response_comp valid" do last_response_components.length > 0 end
-  post "result is array" do |result| result.class == [].class end
+  type :out => Array
   def list_from_response
     result = []
     if last_response_components.length > DATA_IDX
       result =
         last_response_components[DATA_IDX].split(MESSAGE_RECORD_SEPARATOR)
+    end
+    result
+  end
+
+  # All data from the response as a single string - i.e., not split into
+  # records, fields, or other components
+  pre "last_response_comp exists" do last_response_components != nil end
+  pre "last_response_comp valid" do last_response_components.length > 0 end
+  def string_blob_from_response
+    result = []
+    if last_response_components.length > DATA_IDX
+      result = last_response_components[DATA_IDX]
     end
     result
   end
@@ -437,6 +526,18 @@ module MasCommunicationServices
       result += START_END_DATE_SEPARATOR + end_date.strftime(format)
     end
     result
+  end
+
+  def fill_parameters_from_response_list(param_array)
+    name_index, value_index, type_index = 0, 1, 2
+    lines = list_from_response
+    if lines.length > 0
+      (0..lines.count-1).each do |i|
+        parts = lines[i].split(MESSAGE_COMPONENT_SEPARATOR)
+        param_array << tradable_factory.new_parameter(name: parts[name_index],
+                    type_desc: parts[type_index], value: parts[value_index])
+      end
+    end
   end
 
 end

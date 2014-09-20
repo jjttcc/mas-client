@@ -30,7 +30,7 @@ class MasClientOptimized < MasClient
         @last_response << buf
         end_of_message = @last_response[-1] == EOM
       end
-      @@log.debug("[mco]received: '#{last_response[0..52]}...'")
+      @@log.debug("[mco]received: '#{last_response[0..502]}...'")
     rescue EOFError
       @@log.debug(self.class.to_s + ': EOF on read')
       if not end_of_message && first_try

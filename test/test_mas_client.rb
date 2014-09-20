@@ -8,11 +8,11 @@ require_relative '../mas_client/function_parameter'
 require_relative '../mas_client/object_spec'
 
 class TradableObjectFactory
-  include Contracts::DSL
+  include Contracts::DSL, TimePeriodTypeConstants
 
   # A new TradableAnalyzer with the specified name and id
-  def new_analyzer(name: name, id: id)
-    TradableAnalyzer.new(name, id)
+  def new_analyzer(name: name, id: id, period_type: period_type)
+    TradableAnalyzer.new(name, id, is_intraday(period_type))
   end
 
   def new_event(date: date, time: time, id: id, type_id: type_id,
@@ -228,18 +228,24 @@ class TestMasClient < MiniTest::Test
   end
 
   def test_analyzer_list
-    $client.request_analyzers("ibm", MasClient::DAILY)
-    analyzers = $client.analyzers
-    assert analyzers.class == [].class, "analyzers is an array"
-    if analyzers.length == 0
-      puts "<<<<<No analyzers found>>>>>"
-    else
-      if InitialSetup::verbose
-        puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
-      end
-      analyzers.each do |a|
-        assert_kind_of TradableAnalyzer, a
-        if InitialSetup::verbose then puts a.inspect end
+    [MasClient::HOURLY, MasClient::DAILY].each do |pt|
+      begin
+        $client.request_analyzers("ibm", pt)
+        analyzers = $client.analyzers
+        assert analyzers.class == [].class, "analyzers is an array"
+        if analyzers.length == 0
+          puts "<<<<<No analyzers found>>>>>"
+        else
+          if InitialSetup::verbose
+            puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
+          end
+          analyzers.each do |a|
+            assert_kind_of TradableAnalyzer, a
+            if InitialSetup::verbose then puts a.inspect end
+          end
+        end
+      rescue => e
+        puts "e: #{e}"
       end
     end
   end

@@ -39,4 +39,13 @@ module TimePeriodTypeConstants
                     ONE_MINUTE, TWO_MINUTE, FIVE_MINUTE, TEN_MINUTE,
                     FIFTEEN_MINUTE, TWENTY_MINUTE, THIRTY_MINUTE, HOURLY]
 
+  @@interday_periods = {
+    DAILY => true, WEEKLY => true, MONTHLY => true, QUARTERLY => true,
+    YEARLY => true,
+  }
+
+  def is_intraday(period_type)
+    ! @@interday_periods[period_type]
+  end
+
 end

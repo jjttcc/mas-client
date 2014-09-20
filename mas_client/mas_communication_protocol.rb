@@ -75,6 +75,14 @@ module MasCommunicationProtocol
 
   public  ### Server response IDs
 
+  WILL_CLOSE_BOTTOM   = 101
+  # Bottom of the range of IDs indicating that the server will close the
+  # connection immediately after as it has responded.
+
+  WILL_CLOSE_TOP      = 199
+  # TOP of the range of IDs indicating that the server will close the
+  # connection immediately after as it has responded.
+
   ERROR               = 101
   # Response indicating that there was a problem receiving or
   # parsing the client request

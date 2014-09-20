@@ -47,10 +47,14 @@ module MasCommunicationServices
   def logout
     logout_request = constructed_message([LOGOUT_REQUEST, session_key,
                                           NULL_FIELD])
-    begin_communication
-    send(logout_request)
-    # (No 'receive_response' after logout.)
-    end_communication
+    begin
+      begin_communication
+      send(logout_request)
+      # (No 'receive_response' after logout.)
+      end_communication
+    rescue => e
+      @@log.warn("'logout' from server failed with error: #{e}")
+    end
     finish_logout
     @session_key = nil
   end
@@ -189,9 +193,12 @@ module MasCommunicationServices
   # with 'period_type'.
   pre "logged in" do logged_in end
   pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
-    ptype != nil and @@period_types.include?(ptype) end
+    (ptype == nil || @@period_types.include?(ptype)) end
   post :analyzers_set do analyzers != nil and analyzers.class == [].class end
-  def request_analyzers(symbol, period_type)
+  post :analyzers_have_id_name do
+    @analyzers.all? {|a| a.respond_to?(:id) && a.respond_to?(:name)} end
+  type @analyzers => Array
+  def request_analyzers(symbol, period_type = DAILY)
     id_index = 1; name_index = 0
     request = constructed_message([EVENT_LIST_REQUEST, session_key,
                                   symbol, period_type])
@@ -202,7 +209,7 @@ module MasCommunicationServices
       @analyzers = lines.map do |line|
         parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
         tradable_factory.new_analyzer(id: parts[id_index],
-                                      name: parts[name_index])
+                            name: parts[name_index], period_type: period_type)
       end
     end
   end
@@ -212,8 +219,12 @@ module MasCommunicationServices
   # Request that analysis be performed by the specified list of analyzers
   # on the tradable specified by 'symbol' for the specified date/time range.
   #type :in => [Array, String, Date (optional), Date (optional)]
-  pre "logged in" do logged_in end
-  pre "symbol valid" do |alist, sym| sym != nil and sym.length > 0 end
+  pre :logged_in do logged_in end
+  pre :args_valid do |alist, sym, sdate| sym != nil and sym.length > 0 and
+    sdate != nil and (sdate.class == Date || sdate.class == DateTime) end
+  pre :analyzers_have_id do |analyzers|
+    implies(analyzers != nil, analyzers.all? {|a| a.respond_to?(:id)}) end
+  post :analysis_data_exists do @analysis_data != nil end
   def request_analysis(analyzers, symbol, start_date, end_date = nil)
     if analyzers == nil
       @@log.warn('request_analysis called before request_analyzers')
@@ -500,7 +511,8 @@ module MasCommunicationServices
     @server_closed_connection = false
     if last_response_components != nil
       response_code = Integer(last_response_components[MSG_STATUS_IDX])
-      @server_closed_connection = response_code == OK
+      @server_closed_connection = response_code >= WILL_CLOSE_BOTTOM &&
+        response_code <= WILL_CLOSE_TOP
     end
   end
 

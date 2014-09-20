@@ -43,6 +43,30 @@ module MasCommunicationProtocol
   # Request for a list of all valid trading period types for a
   # specified tradable
 
+  TIME_DELIMITED_TRADABLE_DATA_REQUEST = 12
+  # Time-delimited request for data for a specified tradable
+
+  TIME_DELIMITED_INDICATOR_DATA_REQUEST = 13
+  # Time-delimited request for indicator data for a specified tradable
+
+  INDICATOR_PARAMETERS_REQUEST = 14
+  # Request for parameter settings for a specified indicator
+
+  ANALYSIS_PARAMETERS_REQUEST = 15
+  # Request for parameter settings for an analyzer/event type
+
+  INDICATOR_PARAMETERS_SET_REQUEST = 16
+  # Request to set new values for each of a specified set of
+  # parameters for a specified indicator
+
+  ANALYSIS_PARAMETERS_SET_REQUEST = 17
+  # Request to set new values for each of a specified set of
+  # parameters for a specified (analysis) event type
+
+  OBJECT_INFO_REQUEST = 18
+  # Request for information on one or more objects (e.g., indicators,
+  # event-generators)
+
   public  ### Field separators
 
   MESSAGE_DATE_FIELD_SEPARATOR = ""
@@ -50,6 +74,14 @@ module MasCommunicationProtocol
   MESSAGE_TIME_FIELD_SEPARATOR = ""
 
   public  ### Server response IDs
+
+  WILL_CLOSE_BOTTOM   = 101
+  # Bottom of the range of IDs indicating that the server will close the
+  # connection immediately after as it has responded.
+
+  WILL_CLOSE_TOP      = 199
+  # TOP of the range of IDs indicating that the server will close the
+  # connection immediately after as it has responded.
 
   ERROR               = 101
   # Response indicating that there was a problem receiving or
@@ -125,6 +157,8 @@ module MasCommunicationProtocol
   # a message component
   # (from BASIC_COMMUNICATION_PROTOCOL)
 
+  OBJECT_SEPARATOR            = "\x1a" # Ctrl+Z
+
   public  ### Subtokens
 
   END_DATE   = "end_date"
@@ -135,8 +169,8 @@ module MasCommunicationProtocol
 
   public  ### Miscellaneous
 
-  # "Dummy" session key to be used before obtaining a real key
   DUMMY_SESSION_KEY = 0
+  # "Dummy" session key to be used before obtaining a real key
 
   NULL_FIELD        = ''    # An empty field
 
@@ -144,13 +178,24 @@ module MasCommunicationProtocol
 
   MSG_ID_IDX        = 0 # Expected location of msgID - in server message
 
-  # (alias - for clarification/self-documentation)
   MSG_STATUS_IDX    = MSG_ID_IDX
+  # (alias - for clarification/self-documentation)
 
   SESSION_KEY_IDX   = 1 # Expected location of session key - in server message
 
   DATA_IDX          = 1 # Expected location, in server message, of result data
 
   ANALYSIS_REQ_DATE_FIELD_SEPARATOR = '/'
+
+  DATA_REQ_DATE_FIELD_SEPARATOR = '/'
+
+  START_END_DATE_SEPARATOR = ';'
+  # Separator between start-date[time] and end-date[time]
+
+  MESSAGE_SUB_COMPONENT_SEPARATOR = ','
+  # Separator for sub-components within a field
+
+  MESSAGE_KEY_VALUE_SEPARATOR = ':'
+  # Separator for a key/value pair
 
 end

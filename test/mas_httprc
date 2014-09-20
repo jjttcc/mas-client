@@ -20,7 +20,7 @@ months_start_at_zero	true
 # Specification for the start and end dates for the data to be retrieved
 # "now" means, of course, the current date; if an actual date is used,
 # it must be of the form: yyyymmdd.
-eod_start_date	now - 4 years
+eod_start_date	now - 75 years
 eod_end_date	now
 
 # The host component of the http URL used to retrieve market data

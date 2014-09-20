@@ -15,11 +15,13 @@ class MasClient
 
   attr_reader :host, :port, :close_after_writing
 
-  private
+  protected
 
   attr_reader :socket
 
-  def initialize_communication(host, port)
+  private
+
+  def initialize_communication(host, port, close_after_writing_dummy)
     @host = host
     @port = port
     @close_after_writing = true

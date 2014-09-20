@@ -5,7 +5,9 @@
 *bck*
 test/.env*
 *.log
+*.log.*
 tags
 clientex1
 old
 cached_data
+*.orig

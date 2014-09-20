@@ -6,8 +6,13 @@ iterations=1
 if [ $# -gt 0 ]; then iterations=$1; fi
 if [ $iterations -lt 1 ]; then exit 0; fi
 
+filter() {
+    egrep -v \
+'ruby_contracts.*instance.var.*not.init|unused.*var.*\<sc\>|ruby_contracts.*satisfied|warn.*inst.*var.*@.*not.*init'
+}
+
 i=1
 time while [ $i -le $iterations ]; do
-    ruby test/test_mas_client.rb
+    ruby --verbose test/test_mas_client.rb --verbose 2>&1|filter
     ((++i))
 done

@@ -7,10 +7,17 @@ cd $script_path >/dev/null
 if [ -z "$MASPORT" ]; then
     . ./.env
 fi
+ports=$(for p in $MASPORT 5441 5442 5443 5444; do echo $p;done|sort -u)
+exe=mas
+if [ $# -gt 0 ]; then
+    case $1 in
+        -a|assert) exe=masx_assert
+    esac
+fi
 
 # Exit if mas is already running.
 if pgrep -laf "mas *-b.*$MASPORT" >/dev/null; then exit 0; fi
 if pgrep -laf "masx.*-b.*$MASPORT" >/dev/null; then exit 0; fi
 if pgrep -laf "oldmas *-b.*$MASPORT" >/dev/null; then exit 0; fi
-mas -b -w -f , $MASPORT&
+$exe -b -w -f , $ports&
 sleep 1 # Give the server a chance to start-up/initialize.

@@ -3,7 +3,7 @@
 *persist
 *persist*orig
 *bck*
-test/.env*
+test/.env?*
 *.log
 *.log.*
 tags

@@ -4,8 +4,8 @@
 
 script_path=$(dirname $0)
 pgrep_opts='-laf'
-if lsb_release -a|egrep -qi 'ubuntu'; then
-    pgrep_opts='lf'
+if lsb_release -a 2>/dev/null|egrep -qi 'ubuntu'; then
+    pgrep_opts='-lf'
 fi
 cd $script_path >/dev/null
 if [ -z "$MASPORT" ]; then

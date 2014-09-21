@@ -4,7 +4,7 @@
 
 script_path=$(dirname $0)
 pgrep_opts='-laf'
-if lsb_release|egrep -qi 'ubuntu'; then
+if lsb_release -a|egrep -qi 'ubuntu'; then
     pgrep_opts='lf'
 fi
 cd $script_path >/dev/null

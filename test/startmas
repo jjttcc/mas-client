@@ -3,6 +3,10 @@
 # vi: expandtab
 
 script_path=$(dirname $0)
+pgrep_opts='-laf'
+if lsb_release|egrep -qi 'ubuntu'; then
+    pgrep_opts='lf'
+fi
 cd $script_path >/dev/null
 if [ -z "$MASPORT" ]; then
     . ./.env
@@ -16,8 +20,8 @@ if [ $# -gt 0 ]; then
 fi
 
 # Exit if mas is already running.
-if pgrep -laf "mas *-b.*$MASPORT" >/dev/null; then exit 0; fi
-if pgrep -laf "masx.*-b.*$MASPORT" >/dev/null; then exit 0; fi
-if pgrep -laf "oldmas *-b.*$MASPORT" >/dev/null; then exit 0; fi
+if pgrep $pgrep_opts "mas *-b.*$MASPORT" >/dev/null; then exit 0; fi
+if pgrep $pgrep_opts "masx.*-b.*$MASPORT" >/dev/null; then exit 0; fi
+if pgrep $pgrep_opts "oldmas *-b.*$MASPORT" >/dev/null; then exit 0; fi
 $exe -b -w -f , $ports&
 sleep 1 # Give the server a chance to start-up/initialize.

@@ -2,7 +2,6 @@ require 'active_support/time'
 require 'ruby_contracts'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
-require_relative 'tradable_event'
 
 # Services/tools for communication with the Market-Analysis server
 module MasCommunicationServices

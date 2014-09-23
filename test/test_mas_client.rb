@@ -4,6 +4,7 @@ require_relative '../mas_client/mas_client'
 require_relative '../mas_client/mas_client_optimized'
 require_relative './test_setup'
 require_relative './tradable_analyzer'
+require_relative './test_tradable_event'
 require_relative '../mas_client/function_parameter'
 require_relative '../mas_client/object_spec'
 
@@ -27,7 +28,7 @@ class TradableObjectFactory
     else
       analyzer = selected_ans[0]
     end
-    TradableEvent.new(datetime, event_type_id, analyzer)
+    TestTradableEvent.new(datetime, event_type_id, analyzer)
   end
 
   def new_parameter(name: name, type_desc: type_desc, value: value)
@@ -281,7 +282,9 @@ class TestMasClient < MiniTest::Test
         if InitialSetup::verbose
           puts "<<#{e}>>"
         end
-        assert_kind_of TradableEvent, e
+        assert_kind_of TradableEventInterface, e
+        assert_kind_of String, e.event_type
+        assert e.datetime != nil, 'valid datetime'
       end
     end
     $client.request_analysis(selected_analyzers, symbol, startdt, enddt)
@@ -294,7 +297,9 @@ class TestMasClient < MiniTest::Test
         if InitialSetup::verbose
           puts "<<#{e}>>"
         end
-        assert_kind_of TradableEvent, e
+        assert_kind_of TradableEventInterface, e
+        assert_kind_of String, e.event_type
+        assert e.datetime != nil, 'valid datetime'
       end
     end
   end
@@ -601,7 +606,9 @@ class TestMasClient < MiniTest::Test
         if InitialSetup::verbose
           puts "<<#{e}>>"
         end
-        assert_kind_of TradableEvent, e
+        assert_kind_of TradableEventInterface, e
+        assert_kind_of String, e.event_type
+        assert e.datetime != nil, 'valid datetime'
       end
     end
   end

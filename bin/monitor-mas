@@ -1,0 +1,43 @@
+#!/usr/bin/env ruby
+
+def usage
+  puts "Usage: #{File.basename($0)} <port> [<hostname>]"
+end
+
+args = ARGV
+ping = false
+if args.count > 0 && args[0] =~ /-(p|ping)/
+  ping = true
+  args.shift
+end
+if args.count == 0
+  usage
+  exit 2
+end
+port = args[0]
+host = nil
+if args.count > 1
+  host = args[1]
+end
+mas_client_dir = File.dirname($0) + '/../mas_client'
+puts mas_client_dir
+$LOAD_PATH << mas_client_dir
+require 'mas_monitor.rb'
+
+if host
+  monitor = MasMonitor.new(port: port, host: host)
+else
+  monitor = MasMonitor.new(port: port)
+end
+
+if ping
+  if monitor.server_is_healthy
+    puts "Server is doing fine."
+    exit 0
+  else
+    puts "Server is dead or very unhappy."
+    exit 3
+  end
+else
+  monitor.run_forever
+end

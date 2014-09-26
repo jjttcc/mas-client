@@ -11,7 +11,7 @@ class MasMonitor
 
   @@service_name = 'monitor'
 
-  attr_accessor :host, :port, :sleep_seconds, :startup_margin,
+  attr_accessor :host, :main_port, :sleep_seconds, :startup_margin,
     :kill_margin, :cmd_name_pattern, :server_start_cmd
 
   public ###  Status report
@@ -60,27 +60,29 @@ class MasMonitor
 
   @ping_limit = 4
 
-  def initialize(port: port, host: 'localhost')
+  type in: Object
+  pre :settings_valid do |s| s.respond_to?(:main_port) &&
+    s.respond_to?(:host) && s.respond_to?(:cmd_name_pattern) &&
+    s.respond_to?(:server_start_cmd)
+  end
+  def initialize(settings: settings)
     @verbose = ENV['MM_VERBOSE'] != nil
-    @port = port
-    @host = host
+    @main_port = settings.main_port
+    @host = settings.host
     @sleep_seconds = 10
     @startup_margin = 6
     @kill_margin = 25
-    @cmd_name_pattern = 'mas'
-#!!!!!!Stub:
-Dir.chdir('./test/')
-#!!!!!!Stub - this needs to be configurable:
-@server_start_cmd = "mas -b -w -f , #{port}"
+    @cmd_name_pattern = settings.cmd_name_pattern
+    @server_start_cmd = settings.server_start_cmd
   end
 
   private
 
   def new_client
     if @verbose
-      puts "'ping'ing client at port #{port}"
+      puts "'ping'ing client at port #{main_port}"
     end
-    result = MasClientOptimized.new(host: host, port: port,
+    result = MasClientOptimized.new(host: host, port: main_port,
       factory: TradableObjectFactory.new)
   end
 
@@ -97,7 +99,12 @@ Dir.chdir('./test/')
 
   def kill_process(proc)
     if @verbose then puts "killing #{proc.pid}" end
-    Process.kill(:TERM, proc.pid)
+    begin
+      Process.kill(:TERM, proc.pid)
+      sleep 0.75
+      Process.kill(:KILL, proc.pid) # Ensure it's really dead.
+    rescue
+    end
     if @verbose then puts "kp - sleep #{kill_margin}" end
     sleep kill_margin
   end

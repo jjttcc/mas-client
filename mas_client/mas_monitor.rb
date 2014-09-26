@@ -61,10 +61,6 @@ class MasMonitor
   @ping_limit = 4
 
   type in: Object
-  pre :settings_valid do |s| s.respond_to?(:main_port) &&
-    s.respond_to?(:host) && s.respond_to?(:cmd_name_pattern) &&
-    s.respond_to?(:server_start_cmd)
-  end
   def initialize(settings: settings)
     @verbose = ENV['MM_VERBOSE'] != nil
     @main_port = settings.main_port

@@ -20,7 +20,6 @@ if args.count > 1
   host = args[1]
 end
 mas_client_dir = File.dirname($0) + '/../mas_client'
-puts mas_client_dir
 $LOAD_PATH << mas_client_dir
 require 'mas_monitor.rb'
 

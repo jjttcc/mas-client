@@ -2,6 +2,7 @@ require 'ruby_contracts'
 require 'sys/proctable'
 require 'mas_client'
 require 'mas_client_optimized'
+require 'timeout'
 
 class MasMonitor
   include Contracts::DSL, Sys
@@ -18,13 +19,18 @@ class MasMonitor
   post :boolean do |result| result == true || result == false end
   def server_is_healthy
     result = false
+    client = nil
+    if @verbose then puts "[sih]" end
     begin
-      client = new_client
-      result = client.logged_in
-      client.logout
+      timeout_status = Timeout::timeout(5) {
+        client = new_client
+        result = client.logged_in
+        client.logout
+        true
+      }
     rescue => e
-      $stderr.puts e
       result = false
+      if @verbose then puts "timeout_status: #{timeout_status.inspect}" end
     end
     if @verbose
       puts "server is" + ((result)? '': ' NOT') + " healthy"
@@ -38,7 +44,12 @@ class MasMonitor
     loop do
       if not server_is_healthy
         restart_server
+        if not server_is_healthy
+          increment_margins
+          next
+        end
       end
+      if @verbose then puts "run_f - sleep #{sleep_seconds}" end
       sleep sleep_seconds
     end
   rescue Interrupt => e
@@ -47,13 +58,15 @@ class MasMonitor
 
   private ###  Initialization
 
+  @ping_limit = 4
+
   def initialize(port: port, host: 'localhost')
-    @verbose = not ENV[MM_VERBOSE].nil?
+    @verbose = ENV['MM_VERBOSE'] != nil
     @port = port
     @host = host
     @sleep_seconds = 10
-    @startup_margin = 5
-    @kill_margin = 10
+    @startup_margin = 6
+    @kill_margin = 25
     @cmd_name_pattern = 'mas'
 #!!!!!!Stub:
 Dir.chdir('./test/')
@@ -83,24 +96,30 @@ Dir.chdir('./test/')
   end
 
   def kill_process(proc)
-    ##!!!!Thread!!!!
+    if @verbose then puts "killing #{proc.pid}" end
     Process.kill(:TERM, proc.pid)
-    ##!!!![end]Thread!!!!
+    if @verbose then puts "kp - sleep #{kill_margin}" end
     sleep kill_margin
   end
 
   def start_server
-    sleep startup_margin
     pid = fork
     if pid.nil? then
       # (child)
       if @verbose
         puts "starting server with command: '#{server_start_cmd}'"
       end
+      Process.daemon(true, true)
       exec server_start_cmd
     else
-      Process.detach(pid)
     end
+    if @verbose then puts "ss - sleep #{startup_margin}" end
+    sleep startup_margin
+  end
+
+  def increment_margins
+    @kill_margin += 5
+    @startup_margin += 2
   end
 
 end

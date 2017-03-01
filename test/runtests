@@ -12,7 +12,14 @@ filter() {
 }
 
 i=1
+exit_status=0
 time while [ $i -le $iterations ]; do
     ruby --verbose test/test_mas_client.rb --verbose 2>&1|filter
+    run_status=$?
+    if [ $exit_status == 0 ]; then
+        exit_status=$run_status
+    fi
     ((++i))
 done
+if [ $exit_status != 0 ]; then banner FAILED; else banner GOOD; fi
+exit $exit_status

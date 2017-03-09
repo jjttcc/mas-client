@@ -1,7 +1,6 @@
 #!/usr/bin/env ruby
 
 require 'socket'
-require 'logger'
 require 'ruby_contracts'
 require_relative 'mas_communication_services'
 

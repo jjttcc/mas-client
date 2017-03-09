@@ -30,14 +30,14 @@ class MasClientOptimized < MasClient
         @last_response << buf
         end_of_message = @last_response[-1] == EOM
       end
-      @@log.debug("[mco]received: '#{last_response[0..502]}...'")
+      $log.debug("[mco]received: '#{last_response[0..502]}...'")
     rescue EOFError
-      @@log.debug(self.class.to_s + ': EOF on read')
+      $log.debug(self.class.to_s + ': EOF on read')
       if not end_of_message && first_try
         first_try = false
         # EOF implies the server closed the connection, so open a new one:
         renew_socket
-        @@log.debug('[rec_resp] retrying...')
+        $log.debug('[rec_resp] retrying...')
         retry
       end
     end
@@ -45,10 +45,10 @@ class MasClientOptimized < MasClient
 
   def send(msg)
     if socket == nil or server_closed_connection
-      @@log.debug('[send] server_closed_connection...')
+      $log.debug('[send] server_closed_connection...')
       renew_socket
     end
-    @@log.debug("sending '#{msg}'")
+    $log.debug("sending '#{msg}'")
     super(msg)
   end
 

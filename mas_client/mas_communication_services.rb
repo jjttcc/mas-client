@@ -1,5 +1,6 @@
 require 'active_support/time'
 require 'ruby_contracts'
+require 'global_log'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
 
@@ -52,7 +53,7 @@ module MasCommunicationServices
       # (No 'receive_response' after logout.)
       end_communication
     rescue => e
-      @@log.warn("'logout' from server failed with error: #{e}")
+      $log.warn("'logout' from server failed with error: #{e}")
     end
     finish_logout
     @session_key = nil
@@ -191,13 +192,15 @@ module MasCommunicationServices
   # Request data analyzers for the tradable identified by 'symbol'
   # with 'period_type'.
   pre "logged in" do logged_in end
-  pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
-    (ptype == nil || @@period_types.include?(ptype)) end
+  pre :symbol_valid do |symbol| symbol != nil and symbol.length > 0 end
   post :analyzers_set do analyzers != nil and analyzers.class == [].class end
   post :analyzers_have_id_name do
     @analyzers.all? {|a| a.respond_to?(:id) && a.respond_to?(:name)} end
   type @analyzers => Array
   def request_analyzers(symbol, period_type = DAILY)
+    if ! (period_type == nil || @@period_types.include?(period_type)) then
+      raise "invalid period_type: #{period_type.inspect}"
+    end
     id_index = 1; name_index = 0
     request = constructed_message([EVENT_LIST_REQUEST, session_key,
                                   symbol, period_type])
@@ -226,7 +229,7 @@ module MasCommunicationServices
   post :analysis_data_exists do @analysis_data != nil end
   def request_analysis(analyzers, symbol, start_date, end_date = nil)
     if analyzers == nil
-      @@log.warn('request_analysis called before request_analyzers')
+      $log.warn('request_analysis called before request_analyzers')
       @analysis_data = []
     else
       ids = analyzers.map do |analyzer|
@@ -435,8 +438,6 @@ module MasCommunicationServices
 
   private
 
-  @@log = Logger.new('mas-client.log', 1, 1024000)
-
   # Send the 'initial_message' to the server, obtain the response, and use
   # it to set the session_key.
   pre :new_analyzer do |args| args[:factory].respond_to?(:new_analyzer) end
@@ -454,7 +455,7 @@ module MasCommunicationServices
     init_ptype_specs(args['period.*type'])
     initialize_communication(args[:host], args[:port], args[:close_after_w])
     if mas_session.nil?
-      @@log.debug('No mas session yet - need to log in.')
+      $log.debug('No mas session yet - need to log in.')
       execute_request(initial_message)
       @session_key = key_from_response
     end

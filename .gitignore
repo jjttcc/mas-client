@@ -12,3 +12,13 @@ old
 cached_data
 *.orig
 .alias
+doc/
+*.orig*
+masdev/
+*.bad
+*.good
+test/scripts/
+symbols.*
+*_tmp*
+test/work/
+mas_httprc.*

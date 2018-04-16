@@ -1,9 +1,11 @@
 require 'ruby_contracts'
 require 'minitest/autorun'
+$LOAD_PATH.unshift("#{File.dirname(__FILE__)}/../utility")
+require 'global_log'
 require_relative '../mas_client/mas_client'
 require_relative '../mas_client/mas_client_optimized'
 require_relative './test_setup'
-require_relative './tradable_analyzer'
+require_relative './hide_tradable_analyzer.rb'
 require_relative './test_tradable_event'
 require_relative '../mas_client/function_parameter'
 require_relative '../mas_client/object_spec'
@@ -12,16 +14,15 @@ class TradableObjectFactory
   include Contracts::DSL, TimePeriodTypeConstants
 
   # A new TradableAnalyzer with the specified name and id
-  def new_analyzer(name: name, id: id, period_type: period_type)
+  def new_analyzer(name:, id:, period_type:)
     TradableAnalyzer.new(name, id, is_intraday(period_type))
   end
 
-  def new_event(date: date, time: time, id: id, type_id: type_id,
-                analyzers: analyzers)
+  def new_event(date:, time:, id:, type_id:, analyzers:)
     datetime = DateTime.new(date[0..3].to_i, date[4..5].to_i, date[6..7].to_i,
                              time[0..1].to_i, time[2..3].to_i, time[4..5].to_i)
     event_type_id = type_id
-    selected_ans = analyzers.select {|a| a.id == id }
+    selected_ans = analyzers.select {|a| a.event_id == id }
     if selected_ans.length == 0
       raise "new_event: id arg, #{id} " +
         "does not identify any known analyzer."
@@ -31,7 +32,7 @@ class TradableObjectFactory
     TestTradableEvent.new(datetime, event_type_id, analyzer)
   end
 
-  def new_parameter(name: name, type_desc: type_desc, value: value)
+  def new_parameter(name:, type_desc:, value:)
     FunctionParameter.new(name, type_desc, value)
   end
 
@@ -191,7 +192,6 @@ class TestMasClient < MiniTest::Test
 
   def test_indicator_data
     # ('yearly' skipped due to not enough input data.)
-#    ['daily', 'weekly', 'quarterly', 'yearly'].each do |period|
     ['daily', 'weekly', 'quarterly'].each do |period|
       $client.request_indicator_data("ibm", 1, period)
       assert $client.indicator_data.length > 0, "#{period} data length"
@@ -458,7 +458,7 @@ class TestMasClient < MiniTest::Test
     for i in 0..analyzers1.count-1 do
       assert analyzers1[i].name == analyzers2[i].name,
         'analyzer lists: names equal'
-      assert analyzers1[i].id == analyzers2[i].id,
+      assert analyzers1[i].event_id == analyzers2[i].event_id,
         'analyzer lists: ids equal'
     end
 
@@ -502,7 +502,8 @@ class TestMasClient < MiniTest::Test
           'same event_types 1'
         assert cl1data[j].analyzer.name == cl1data_II[j].analyzer.name,
           'same ana-names 1'
-        assert cl1data[j].analyzer.id == cl1data_II[j].analyzer.id,
+        assert cl1data[j].analyzer.event_id ==
+          cl1data_II[j].analyzer.event_id,
           'same ana-ids 1'
       end
       (0..cl2data.count-1).each do |j|
@@ -513,7 +514,8 @@ class TestMasClient < MiniTest::Test
           'same event_types 2'
         assert cl2data[j].analyzer.name == cl2data_II[j].analyzer.name,
           'same ana-names 2'
-        assert cl2data[j].analyzer.id == cl2data_II[j].analyzer.id,
+        assert cl2data[j].analyzer.event_id ==
+          cl2data_II[j].analyzer.event_id,
           'same ana-ids 2'
       end
     end

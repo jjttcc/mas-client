@@ -1,7 +1,60 @@
 #!/bin/bash
 # vim: expandtab:
 
+# Ugly hack to restore (unhide) tradable_analyzer.rb, which may have been
+# renamed to fix the main app test - re. rails confusion about which
+# tradable_analyzer.rb file to use.
+restore_tradable_ana() {
+    real_name=tradable_analyzer.rb
+    hidden_name=hide_tradable_analyzer.rb
+    dir="$1"
+    pushd $dir || return
+    if [ -e $real_name ]; then
+        pushd
+        return  # File name is correct.
+    fi
+    if [ -e $hidden_name ]; then
+        mv $hidden_name $real_name
+    else
+        echo "Fatal error: Could not find *$real_name" >&2
+        exit 43
+    fi
+    pushd
+}
+
+rehide_tradable_ana() {
+    real_name=tradable_analyzer.rb
+    hidden_name=hide_tradable_analyzer.rb
+    dir="$1"
+    pushd $dir || return
+    mv $real_name $hidden_name || {
+        echo "Failed to rehide $real_name" >&2
+    }
+    pushd
+}
+
+script_name=test_mas_client.rb
+found_script=true
+export RUBYLIB='$PWD/../utility:$PWD/../app/mas_bridge'
 iterations=1
+test_script=$(find . -name $script_name)
+if [ -z "$test_script" ]; then
+    if [ -z "$TATDEV" ]; then
+        found_script=false
+        echo "TATDEV env. var. not set." >&2
+    else
+        test_script=$(find $TATDEV -name $script_name)
+        if [ -z "$test_script" ]; then
+            found_script=false
+        fi
+    fi
+fi
+if ! eval $found_script; then
+    echo "Could not find test script $script_name" >&2
+    exit 42
+fi
+testdir=$(dirname $test_script)
+#restore_tradable_ana $testdir
 
 if [ $# -gt 0 ]; then iterations=$1; fi
 if [ $iterations -lt 1 ]; then exit 0; fi
@@ -14,12 +67,13 @@ filter() {
 i=1
 exit_status=0
 time while [ $i -le $iterations ]; do
-    ruby --verbose test/test_mas_client.rb --verbose 2>&1|filter
+    ruby $test_script --verbose 2>&1
     run_status=$?
     if [ $exit_status == 0 ]; then
         exit_status=$run_status
     fi
     ((++i))
 done
+#rehide_tradable_ana $testdir
 if [ $exit_status != 0 ]; then banner FAILED; else banner GOOD; fi
 exit $exit_status

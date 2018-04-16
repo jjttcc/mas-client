@@ -195,7 +195,7 @@ module MasCommunicationServices
   pre :symbol_valid do |symbol| symbol != nil and symbol.length > 0 end
   post :analyzers_set do analyzers != nil and analyzers.class == [].class end
   post :analyzers_have_id_name do
-    @analyzers.all? {|a| a.respond_to?(:id) && a.respond_to?(:name)} end
+    @analyzers.all? {|a| a.respond_to?(:event_id) && a.respond_to?(:name)} end
   type @analyzers => Array
   def request_analyzers(symbol, period_type = DAILY)
     if ! (period_type == nil || @@period_types.include?(period_type)) then
@@ -225,7 +225,7 @@ module MasCommunicationServices
   pre :args_valid do |alist, sym, sdate| sym != nil and sym.length > 0 and
     sdate != nil and (sdate.class == Date || sdate.class == DateTime) end
   pre :analyzers_have_id do |analyzers|
-    implies(analyzers != nil, analyzers.all? {|a| a.respond_to?(:id)}) end
+    implies(analyzers != nil, analyzers.all? {|a| a.respond_to?(:event_id)}) end
   post :analysis_data_exists do @analysis_data != nil end
   def request_analysis(analyzers, symbol, start_date, end_date = nil)
     if analyzers == nil
@@ -233,7 +233,7 @@ module MasCommunicationServices
       @analysis_data = []
     else
       ids = analyzers.map do |analyzer|
-        analyzer.id
+        analyzer.event_id
       end
       sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
         ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,

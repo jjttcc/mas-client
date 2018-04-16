@@ -2,15 +2,20 @@
 # Start the mas server for testing.
 # vi: expandtab
 
+if [ -z "$TATDEV" ]; then
+    echo "Error: TATDEV env. var. not set" >&2
+    exit 42
+fi
+cd $TATDEV/library/test/masdev || {
+    echo "Could not cd to MAS dev/run directory - aborting ..." >&2
+    exit 43
+}
 script_path=$(dirname $0)
 pgrep_opts='-laf'
 if lsb_release -a 2>/dev/null|egrep -qi 'ubuntu'; then
     pgrep_opts='-lf'
 fi
 cd $script_path >/dev/null
-if [ -z "$MASPORT" ]; then
-    . ./.env
-fi
 ports=$(for p in $MASPORT 5441 5442 5443 5444; do echo $p;done|sort -u)
 exe=mas
 if [ $# -gt 0 ]; then
@@ -23,5 +28,5 @@ fi
 if pgrep $pgrep_opts "mas *-b.*$MASPORT" >/dev/null; then exit 0; fi
 if pgrep $pgrep_opts "masx.*-b.*$MASPORT" >/dev/null; then exit 0; fi
 if pgrep $pgrep_opts "oldmas *-b.*$MASPORT" >/dev/null; then exit 0; fi
-$exe -b -w -f , $ports&
+$exe -b -f , $ports *.txt&
 sleep 1 # Give the server a chance to start-up/initialize.

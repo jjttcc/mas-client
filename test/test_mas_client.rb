@@ -9,6 +9,7 @@ require_relative './hide_tradable_analyzer.rb'
 require_relative './test_tradable_event'
 require_relative '../mas_client/function_parameter'
 require_relative '../mas_client/object_spec'
+require_relative './parameter_test_tools'
 
 class TradableObjectFactory
   include Contracts::DSL, TimePeriodTypeConstants
@@ -74,8 +75,12 @@ class InitialSetup
     # Source the .env file to get the $MASPORT env. var.
     testpath = File::dirname($0)
     source_env_from(testpath + '/.env')
-    mas_script = testpath + '/startmas'
-    if ! system mas_script; then exit 222 end
+    if ! ENV["MC_NO_SERVER_START"] then
+      mas_script = testpath + '/startmas'
+      if ! system mas_script; then exit 222 end
+    else
+      $stderr.puts "Skipping auto-starting mas server"
+    end
     $client = new_client
     if not $client.logged_in
       puts "Login of client failed - aborting test"
@@ -92,6 +97,8 @@ $fin_set = false
 SLEEP = true
 
 class TestMasClient < MiniTest::Test
+  include ParameterTestTools
+
   def setup
     if not $client.logged_in
       # test_logout has been called - must re-login:
@@ -302,6 +309,68 @@ class TestMasClient < MiniTest::Test
         assert e.datetime != nil, 'valid datetime'
       end
     end
+  end
+
+  def test_indicator_parameters_modification_with_verification
+    switch_to_inidicators
+    failures = []
+    inames = [
+      'MACD Difference',
+      'MACD Signal Line (EMA of MACD Difference)',
+      "Slope of MACD Signal Line",
+      "Simple Moving Average",
+      "Exponential Moving Average",
+    ]
+    inames.each do |ind_name|
+      settings = client_request_for(ind_name)
+      $client.request_indicator_parameters_modification(ind_name, settings)
+      $client.request_indicator_parameters(ind_name)
+      $client.indicator_parameters.each do |p|
+        if InitialSetup::verbose
+          puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+        end
+        expected_value = value_for(ind_name, p.name)
+        if expected_value != p.value then
+          failures << "[#{ind_name}/#{p.name}] expected: " +
+            "#{expected_value}, got: #{p.value}"
+        end
+      end
+    end
+
+    ind_name = inames[1]
+    tgtpname = "3:n-value - MACD Signal Line (EMA of MACD Difference)"
+    settings = client_request_for(ind_name, {tgtpname => true})
+    $client.request_indicator_parameters_modification(ind_name, settings)
+    $client.request_indicator_parameters(ind_name)
+    $client.indicator_parameters.each do |p|
+      if InitialSetup::verbose
+        puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+      end
+      expected_value = value_for(ind_name, p.name)
+      if expected_value != p.value then
+        failures << "[#{ind_name}/#{p.name}] expected: " +
+        "#{expected_value}, got: #{p.value}"
+      end
+    end
+    assert failures.empty?, failures.join("\n")
+
+    ind_name = inames[1]
+    tgtpname = "3:n-value - MACD Signal Line (EMA of MACD Difference)"
+    change_param_value(ind_name, tgtpname, 42)
+    settings = client_request_for(ind_name, {tgtpname => true})
+    $client.request_indicator_parameters_modification(ind_name, settings)
+    $client.request_indicator_parameters(ind_name)
+    $client.indicator_parameters.each do |p|
+      if InitialSetup::verbose
+        puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+      end
+      expected_value = value_for(ind_name, p.name)
+      if expected_value != p.value then
+        failures << "[#{ind_name}/#{p.name}] expected: " +
+        "#{expected_value}, got: #{p.value}"
+      end
+    end
+    assert failures.empty?, failures.join("\n")
   end
 
   def test_indicator_parameters
@@ -519,6 +588,66 @@ class TestMasClient < MiniTest::Test
           'same ana-ids 2'
       end
     end
+  end
+
+  def test_analyzer_parameters_modification3
+    switch_to_analyzers
+    failures = []
+    anames = [
+      "MACD Crossover (Buy)",
+      "MACD Crossover (Sell)",
+      "Stochastic %D Crossover (Buy)",
+    ]
+    anames.each do |ana_name|
+      settings = client_request_for(ana_name)
+      $client.request_analysis_parameters_modification(ana_name, settings)
+      $client.request_analysis_parameters(ana_name)
+      $client.analysis_parameters.each do |p|
+        if InitialSetup::verbose
+          puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+        end
+        expected_value = value_for(ana_name, p.name)
+        if expected_value != p.value then
+          failures << "[#{ana_name}/#{p.name}] expected: " +
+            "#{expected_value}, got: #{p.value}"
+        end
+      end
+    end
+
+    ana_name = anames[1]
+    tgtpname = "5:n-value - MACD Signal Line (EMA of MACD Difference)"
+    settings = client_request_for(ana_name, {tgtpname => true})
+    $client.request_analysis_parameters_modification(ana_name, settings)
+    $client.request_analysis_parameters(ana_name)
+    $client.analysis_parameters.each do |p|
+      if InitialSetup::verbose
+        puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+      end
+      expected_value = value_for(ana_name, p.name)
+      if expected_value != p.value then
+        failures << "[#{ana_name}/#{p.name}] expected: " +
+        "#{expected_value}, got: #{p.value}"
+      end
+    end
+    assert failures.empty?, failures.join("\n")
+
+    ana_name = anames[1]
+    tgtpname = "5:n-value - MACD Signal Line (EMA of MACD Difference)"
+    change_param_value(ana_name, tgtpname, 42)
+    settings = client_request_for(ana_name, {tgtpname => true})
+    $client.request_analysis_parameters_modification(ana_name, settings)
+    $client.request_analysis_parameters(ana_name)
+    $client.analysis_parameters.each do |p|
+      if InitialSetup::verbose
+        puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+      end
+      expected_value = value_for(ana_name, p.name)
+      if expected_value != p.value then
+        failures << "[#{ana_name}/#{p.name}] expected: " +
+        "#{expected_value}, got: #{p.value}"
+      end
+    end
+    assert failures.empty?, failures.join("\n")
   end
 
   def test_object_info_indicators

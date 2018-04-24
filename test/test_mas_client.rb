@@ -4,6 +4,7 @@ $LOAD_PATH.unshift("#{File.dirname(__FILE__)}/../utility")
 require 'global_log'
 require_relative '../mas_client/mas_client'
 require_relative '../mas_client/mas_client_optimized'
+require_relative '../mas_client/mas_client_nonblocking'
 require_relative './test_setup'
 require_relative './hide_tradable_analyzer.rb'
 require_relative './test_tradable_event'
@@ -41,12 +42,12 @@ end
 
 def new_client
   if ENV['OPTIMIZE']
-    if InitialSetup::verbose then puts "Using MasClientOptimized" end
-    result = MasClientOptimized.new(InitialSetup::MasClientArgs.new)
+    if InitialSetup::verbose then puts "Using MasClientNonblocking" end
+    result = MasClientNonblocking.new(InitialSetup::MasClientArgs.new)
   else
     if InitialSetup::verbose then puts "Using MasClient" end
     result = MasClient.new(host: 'localhost', port: port,
-                           factory: TradableObjectFactory.new)
+                           factory: TradableObjectFactory.new, timeout: 4)
   end
   result
 end
@@ -65,9 +66,14 @@ class InitialSetup
       result
     end
 
+    def settings
+      HASHTABLE
+    end
+
     HASHTABLE = {
       host: 'localhost', port: ENV['MASPORT'],
       factory: TradableObjectFactory.new, close_after_w: false,
+      timeout: 4,
     }
   end
 
@@ -236,20 +242,24 @@ class TestMasClient < MiniTest::Test
   end
 
   def test_analyzer_list
-    [MasClient::HOURLY, MasClient::DAILY].each do |pt|
+    [MasClient::HOURLY, MasClient::DAILY, MasClient::MONTHLY].each do |pt|
       begin
         $client.request_analyzers("ibm", pt)
-        analyzers = $client.analyzers
-        assert analyzers.class == [].class, "analyzers is an array"
-        if analyzers.length == 0
-          puts "<<<<<No analyzers found>>>>>"
+        if $client.communication_failed then
+          $log.warn("request_analyzers failed for #{pt} (\n#{$client.last_exception})")
         else
-          if InitialSetup::verbose
-            puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
-          end
-          analyzers.each do |a|
-            assert_kind_of TradableAnalyzer, a
-            if InitialSetup::verbose then puts a.inspect end
+          analyzers = $client.analyzers
+          assert analyzers.class == [].class, "analyzers is an array"
+          if analyzers.length == 0
+            puts "<<<<<No analyzers found>>>>>"
+          else
+            if InitialSetup::verbose
+              puts "<<<<<There were #{analyzers.length} analyzers>>>>>"
+            end
+            analyzers.each do |a|
+              assert_kind_of TradableAnalyzer, a
+              if InitialSetup::verbose then puts a.inspect end
+            end
           end
         end
       rescue => e

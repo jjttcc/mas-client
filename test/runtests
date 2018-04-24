@@ -36,6 +36,9 @@ rehide_tradable_ana() {
 script_name=test_mas_client.rb
 found_script=true
 export RUBYLIB='$PWD/../utility:$PWD/../app/mas_bridge'
+if [ -z "$MASPORT" ]; then  # test script depends on $MASPORT env var
+    export MASPORT=5441
+fi
 iterations=1
 test_script=$(find . -name $script_name)
 if [ -z "$test_script" ]; then

@@ -18,22 +18,33 @@ class MasClientOptimized < MasClient
 
   READ_LENGTH = 2**14
 
-  def receive_response
+  private # hook method redefinitions
+
+  def post_initialize_communication(close_after_w)
+    @close_after_writing = close_after_w
+  end
+
+  def prepare_for_send
+    if socket == nil or server_closed_connection then
+      $log.debug('[send] server_closed_connection...')
+      renew_socket
+    end
+  end
+
+  def socket_response
+    result = ""
     first_try = true
     begin
-      @last_response = ''
       end_of_message = false
       while not end_of_message
-#!!!!Consider using read_nonblock instead of readpartial (because it's
-#!!!!nonblocking).
         buf = socket.readpartial(READ_LENGTH)
-        @last_response << buf
-        end_of_message = @last_response[-1] == EOM
+        result << buf
+        end_of_message = result[-1] == EOM
       end
-      $log.debug("[mco]received: '#{last_response[0..502]}...'")
+      $log.debug("[mco]received: '#{result[0..502]}...'")
     rescue EOFError
       $log.debug(self.class.to_s + ': EOF on read')
-      if not end_of_message && first_try
+      if not end_of_message && first_try then
         first_try = false
         # EOF implies the server closed the connection, so open a new one:
         renew_socket
@@ -41,25 +52,17 @@ class MasClientOptimized < MasClient
         retry
       end
     end
-  end
-
-  def send(msg)
-    if socket == nil or server_closed_connection
-      $log.debug('[send] server_closed_connection...')
-      renew_socket
-    end
-    $log.debug("sending '#{msg}'")
-    super(msg)
+    result
   end
 
   private
 
   # Assign 'socket' to a newly created TCPSocket.
   def renew_socket
-    if socket != nil and not socket.closed?
+    if socket != nil and not socket.closed? then
       socket.close
     end
-    @socket = TCPSocket.new(host, port)
+    @socket = new_socket(host, port)
   end
 
 end

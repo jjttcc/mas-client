@@ -4,6 +4,14 @@ require 'global_log'
 require_relative 'mas_communication_protocol'
 require_relative 'time_period_type_constants'
 
+# General serious, but not fatal, MAS-related errors/exceptions
+class MasRuntimeError < RuntimeError
+end
+
+# Errors/exceptions caused by a time-out during a non-blocking operation
+class MasTimeoutError < MasRuntimeError
+end
+
 # Services/tools for communication with the Market-Analysis server
 module MasCommunicationServices
   include MasCommunicationProtocol, TimePeriodTypeConstants
@@ -13,7 +21,8 @@ module MasCommunicationServices
 
   attr_reader :session_key, :symbols, :indicators, :period_types,
     :tradable_data, :indicator_data, :analyzers, :analysis_data,
-    :mas_session, :indicator_parameters, :analysis_parameters, :object_info
+    :mas_session, :indicator_parameters, :analysis_parameters,
+    :object_info, :last_exception
 
   public ### Access
 
@@ -26,9 +35,21 @@ module MasCommunicationServices
   type :in => String
   def period_type_spec_for(period_type)
     result = nil
-    if period_type_specs != nil
+    if period_type_specs != nil then
       result = period_type_specs[period_type]
     end
+  end
+
+  public ###  Status report
+
+  # Did an interaction (connect, read, etc) with the server fail?
+  def communication_failed
+    last_exception != nil
+  end
+
+  # The type/class of the last exception for which 'communication_failed'
+  def last_exception_type
+    result = @last_exception.class
   end
 
   public  ###  Element change
@@ -62,13 +83,15 @@ module MasCommunicationServices
   # Request all available tradable symbols from the server and initialize the
   # 'symbols' attribute with this list.
   pre "logged in" do logged_in end
-  post :symbols_exist do symbols != nil end
+  post :symbols_exist do implies(! communication_failed, symbols != nil) end
   type @symbols => Array
   def request_symbols
     sym_request = constructed_message([TRADABLE_LIST_REQUEST, session_key,
                                   NULL_FIELD])
     execute_request(sym_request)
-    @symbols = list_from_response
+    if ! communication_failed then
+      @symbols = list_from_response
+    end
   end
 
   # Request all indicators (TA functions) available for the tradable
@@ -81,7 +104,9 @@ module MasCommunicationServices
     ind_request = constructed_message([INDICATOR_LIST_REQUEST, session_key,
                                   symbol, period_type])
     execute_request(ind_request)
-    @indicators = list_from_response
+    if ! communication_failed then
+      @indicators = list_from_response
+    end
   end
 
   # Request all period-types available for the 'symbol'.
@@ -92,26 +117,32 @@ module MasCommunicationServices
     ptype_request = constructed_message([TRADING_PERIOD_TYPE_REQUEST,
                                          session_key, symbol])
     execute_request(ptype_request)
-    @period_types = list_from_response
+    if ! communication_failed then
+      @period_types = list_from_response
+    end
   end
 
   # Request data for the 'symbol' at 'period_type'.
   pre "logged in" do logged_in end
   pre "args valid" do |sym, ptype| sym != nil and sym.length > 0 and
     ptype != nil and @@period_types.include?(ptype) end
+  post "tradable data" do implies(! communication_failed,
+                                  ! tradable_data.nil?) end
   type @tradable_data => Array
   def request_tradable_data(symbol, period_type, start_date = nil,
                             end_date = nil)
     msg_parts = [TRADABLE_DATA_REQUEST, session_key, symbol, period_type]
-    if start_date != nil
+    if start_date != nil then
       msg_parts[0] = TIME_DELIMITED_TRADABLE_DATA_REQUEST
       msg_parts << date_spec(start_date, end_date)
     end
     data_request = constructed_message(msg_parts)
     execute_request(data_request, method(:process_data_response))
-    lines = list_from_response
-    @tradable_data = lines.map do |line|
-      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    if ! communication_failed then
+      lines = list_from_response
+      @tradable_data = lines.map do |line|
+        line.split(MESSAGE_COMPONENT_SEPARATOR)
+      end
     end
   end
 
@@ -125,15 +156,17 @@ module MasCommunicationServices
                              start_date = nil, end_date = nil)
     msg_parts = [INDICATOR_DATA_REQUEST, session_key, indicator_id,
                  symbol, period_type]
-    if start_date != nil
+    if start_date != nil then
       msg_parts[0] = TIME_DELIMITED_INDICATOR_DATA_REQUEST
       msg_parts << date_spec(start_date, end_date)
     end
     data_request = constructed_message(msg_parts)
     execute_request(data_request, method(:process_data_response))
-    lines = list_from_response
-    @indicator_data = lines.map do |line|
-      line.split(MESSAGE_COMPONENT_SEPARATOR)
+    if ! communication_failed then
+      lines = list_from_response
+      @indicator_data = lines.map do |line|
+        line.split(MESSAGE_COMPONENT_SEPARATOR)
+      end
     end
   end
 
@@ -146,8 +179,10 @@ module MasCommunicationServices
     request = constructed_message([INDICATOR_PARAMETERS_REQUEST, session_key,
                                    indicator_name])
     execute_request(request, method(:process_data_response))
-    @indicator_parameters = []
-    fill_parameters_from_response_list(@indicator_parameters)
+    if ! communication_failed then
+      @indicator_parameters = []
+      fill_parameters_from_response_list(@indicator_parameters)
+    end
   end
 
   # Request modification of parameter settings for the specified indicator.
@@ -172,8 +207,10 @@ module MasCommunicationServices
     request = constructed_message([ANALYSIS_PARAMETERS_REQUEST, session_key,
                                    analyzer_name])
     execute_request(request, method(:process_data_response))
-    @analysis_parameters = []
-    fill_parameters_from_response_list(@analysis_parameters)
+    if ! communication_failed then
+      @analysis_parameters = []
+      fill_parameters_from_response_list(@analysis_parameters)
+    end
   end
 
   # Request modification of parameter settings for the specified analyzer.
@@ -193,8 +230,9 @@ module MasCommunicationServices
   # with 'period_type'.
   pre "logged in" do logged_in end
   pre :symbol_valid do |symbol| symbol != nil and symbol.length > 0 end
-  post :analyzers_set do analyzers != nil and analyzers.class == [].class end
-  post :analyzers_have_id_name do
+  post :analyzers_set do communication_failed ||
+                         analyzers != nil && analyzers.class == [].class end
+  post :analyzers_have_id_name do communication_failed ||
     @analyzers.all? {|a| a.respond_to?(:event_id) && a.respond_to?(:name)} end
   type @analyzers => Array
   def request_analyzers(symbol, period_type = DAILY)
@@ -205,13 +243,16 @@ module MasCommunicationServices
     request = constructed_message([EVENT_LIST_REQUEST, session_key,
                                   symbol, period_type])
     execute_request(request, method(:process_data_response))
-    lines = list_from_response
-    @analyzers = []
-    if lines.length > 0
-      @analyzers = lines.map do |line|
-        parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
-        tradable_factory.new_analyzer(id: parts[id_index],
-                            name: parts[name_index], period_type: period_type)
+    if ! communication_failed then
+      lines = list_from_response
+      @analyzers = []
+      if lines.length > 0 then
+        @analyzers = lines.map do |line|
+          parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
+          tradable_factory.new_analyzer(id: parts[id_index],
+                                        name: parts[name_index],
+                                        period_type: period_type)
+        end
       end
     end
   end
@@ -224,11 +265,12 @@ module MasCommunicationServices
   pre :logged_in do logged_in end
   pre :args_valid do |alist, sym, sdate| sym != nil and sym.length > 0 and
     sdate != nil and (sdate.class == Date || sdate.class == DateTime) end
-  pre :analyzers_have_id do |analyzers|
-    implies(analyzers != nil, analyzers.all? {|a| a.respond_to?(:event_id)}) end
-  post :analysis_data_exists do @analysis_data != nil end
+  pre :analyzers_have_id do |analyzers| analyzers == nil ||
+                        analyzers.all? {|a| a.respond_to?(:event_id)} end
+  post :analysis_data_exists do communication_failed ||
+                                  @analysis_data != nil end
   def request_analysis(analyzers, symbol, start_date, end_date = nil)
-    if analyzers == nil
+    if analyzers == nil then
       $log.warn('request_analysis called before request_analyzers')
       @analysis_data = []
     else
@@ -238,7 +280,7 @@ module MasCommunicationServices
       sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
         ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,
         ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.day
-      if end_date == nil
+      if end_date == nil then
         edate = 'now'
       else
         edate = sprintf "%04d%c%02d%c%02d", end_date.year,
@@ -249,12 +291,14 @@ module MasCommunicationServices
       request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                     dates + ids)
       execute_request(request, method(:process_data_response))
-      lines = list_from_response
-      @analysis_data = lines.map do |line|
-        record = line.split(MESSAGE_COMPONENT_SEPARATOR)
-        tradable_factory.new_event(date: record[DATE_I], time: record[TIME_I],
-                                   id: record[ID_I], type_id: record[TYPE_I],
-                                   analyzers: analyzers)
+      if ! communication_failed then
+        lines = list_from_response
+        @analysis_data = lines.map do |line|
+          record = line.split(MESSAGE_COMPONENT_SEPARATOR)
+          tradable_factory.new_event(date: record[DATE_I], time: record[TIME_I],
+                                     id: record[ID_I], type_id: record[TYPE_I],
+                                     analyzers: analyzers)
+        end
       end
     end
   end
@@ -262,15 +306,16 @@ module MasCommunicationServices
   # Request information for the specified objects.
   type in: Array
   pre :logged_in do logged_in end
-  post :object_info_exists do @object_info != nil end
-  post :object_info_strings do implies(object_info.count > 0,
-                                       object_info[0].class == String) end
+  post :object_info_exists do implies(! communication_failed,
+                                      @object_info != nil) end
+  post :object_info_strings do communication_failed ||
+          implies(object_info.count > 0, object_info[0].class == String) end
   type @object_info => Array
   def request_object_info(object_list)
     obj_inf_req = ''
     (0..object_list.count-2).each do |i|
       obj_inf_req << "#{object_list[i].type},#{object_list[i].name}"
-      if object_list[i].options != nil
+      if object_list[i].options != nil then
         obj_inf_req << ",#{object_list[i].options}"
       end
       obj_inf_req << "\n"
@@ -280,8 +325,10 @@ module MasCommunicationServices
     request = constructed_message([OBJECT_INFO_REQUEST, session_key,
                                    obj_inf_req])
     execute_request(request)
-    data = string_blob_from_response
-    @object_info = data.split(OBJECT_SEPARATOR)
+    if ! communication_failed then
+      data = string_blob_from_response
+      @object_info = data.split(OBJECT_SEPARATOR)
+    end
   end
 
   public ### Utilities
@@ -294,11 +341,11 @@ module MasCommunicationServices
     result = true
     ptypes = arg[:period_types]
     ptypes ||= arg['period.*']
-    if ptypes
+    if ptypes then
       result = ptypes.respond_to?('[]')
-      if result
+      if result then
         ptypes.each do |ptype|
-          if not valid_period_type_spec(ptype)
+          if not valid_period_type_spec(ptype) then
             result = false
             break
           end
@@ -334,7 +381,7 @@ module MasCommunicationServices
 
   # Obtain the server's response from the last 'send'
   type @last_response => String
-  post "last_response exists" do last_response.length > 0 end
+  post :last_response_exists do last_response.length > 0 end
   def receive_response
     raise "abstract method"
   end
@@ -342,6 +389,10 @@ module MasCommunicationServices
   # Perform any actions needed initially, before any communication has
   # occured.
   def initialize_communication
+  end
+
+  # Initialize the timeout (if there is one) value.
+  def initialize_timeout(timeout_in_seconds)
   end
 
   # Perform any actions needed in preparation for a send/receive
@@ -362,19 +413,19 @@ module MasCommunicationServices
 
   # Initial message to the server to start a session
   type :out => String
-  post "not empty" do |result| result.length > 0 end
-  post "result ends in EOM" do |result| result[-1] == EOM end
+  post :not_empty do |result| result.length > 0 end
+  post :result_ends_in_EOM do |result| result[-1] == EOM end
   def initial_message
     specs = period_type_specs
     result = ''
-    if specs != nil && ! specs.empty?
+    if specs != nil && ! specs.empty? then
       Time.zone = 'UTC'; now = Time.zone.now.to_date
       message_components = [LOGIN_REQUEST, DUMMY_SESSION_KEY]
       specs.values.each do |spec|
         message_components << [START_DATE, spec.period_type,
            "now - #{(now - spec.start_date.to_date).floor} days"]
         end_spec = 'now'
-        if spec.end_date != nil
+        if spec.end_date != nil then
           end_spec << " - #{(now - spec.end_date.to_date).floor} days"
         end
         message_components << [END_DATE, spec.period_type, end_spec]
@@ -391,8 +442,9 @@ module MasCommunicationServices
 
   # Process response 'r' (String) and initialize last_response_components
   # with the resulting array.
-  post "last_response_comp exists" do last_response_components != nil end
-  post "last response array" do last_response_components.class == [].class end
+  pre :r_not_nil do |r| ! r.nil? end
+  post :last_response_comp_exists do last_response_components != nil end
+  post :last_response_array do last_response_components.class == [].class end
   def process_response(r)
     r.sub!(/#{EOM}$/, '')  # Strip off end-of-message character at end.
     @last_response_components = r.split(MESSAGE_COMPONENT_SEPARATOR)
@@ -411,7 +463,7 @@ module MasCommunicationServices
   type :out => Array
   def list_from_response
     result = []
-    if last_response_components.length > DATA_IDX
+    if last_response_components.length > DATA_IDX then
       result =
         last_response_components[DATA_IDX].split(MESSAGE_RECORD_SEPARATOR)
     end
@@ -424,7 +476,7 @@ module MasCommunicationServices
   pre "last_response_comp valid" do last_response_components.length > 0 end
   def string_blob_from_response
     result = []
-    if last_response_components.length > DATA_IDX
+    if last_response_components.length > DATA_IDX then
       result = last_response_components[DATA_IDX]
     end
     result
@@ -443,21 +495,25 @@ module MasCommunicationServices
   pre :new_analyzer do |args| args[:factory].respond_to?(:new_analyzer) end
   pre :host_port do |args| ! args[:host].nil? && ! args[:port].nil? end
   pre :valid_period_types do |args| valid_period_types(args) end
-  post "logged in" do logged_in end
-  post :valid_session_key do session_key =~ /^\d+/ end
+  post :logged_in do implies(! communication_failed, logged_in) end
+  post :valid_session_key do implies(! communication_failed,
+                                     session_key =~ /^\d+/) end
   type @session_key => String
   def initialize(args)
     @tradable_factory = args[:factory]
     @mas_session = args[:mas_session]
-    if mas_session
+    if mas_session then
       @session_key = mas_session.mas_session_key.to_s
     end
     init_ptype_specs(args['period.*type'])
     initialize_communication(args[:host], args[:port], args[:close_after_w])
-    if mas_session.nil?
+    if args[:timeout] then initialize_timeout(args[:timeout]) end
+    if mas_session.nil? then
       $log.debug('No mas session yet - need to log in.')
       execute_request(initial_message)
-      @session_key = key_from_response
+      if ! communication_failed then
+        @session_key = key_from_response
+      end
     end
   end
 
@@ -466,26 +522,39 @@ module MasCommunicationServices
   # returned OK status, and, if not, raise an appropriate exception.  If
   # 'processor' is not nil, it will be called to process the server's
   # response; otherwise, process_response will be called.
-  pre "request valid" do |request| request != nil and request.length > 0 end
-  post "last_resp_comp exists" do last_response_components != nil end
-  post "last_resp_comp array" do last_response_components.class == [].class end
+  pre :request_valid do |request| request != nil and request.length > 0 end
+  post :last_resp_comp_exists do implies(! communication_failed,
+                            last_response_components != nil) end
+  post :last_resp_comp_array do implies(! communication_failed,
+                            last_response_components.class == [].class) end
   def execute_request(request, processor = nil)
-    @last_response_components = nil
-    send_request(request)
-    if processor
-      processor.call(last_response)
-    else
-      process_response(last_response)
-    end
-    set_server_closed_connection
-    if not response_ok?
-      raise "Server returned error status: #{last_response}"
+    @last_exception = nil
+    begin
+      @last_response_components = nil
+      send_request(request)
+      if processor then
+        processor.call(last_response)
+      else
+        process_response(last_response)
+      end
+      set_server_closed_connection
+      if not response_ok? then
+        raise "Server returned error status: #{last_response}"
+      end
+    rescue MasRuntimeError => e
+$log.debug("caught MasRuntimeError (#{__FILE__}, #{__LINE__}):\n" +
+           "#{e}\n#{e.backtrace.join("\n")}")
+      record_failure(e)
+    rescue RuntimeError => e
+$log.debug("caught RuntimeError (#{__FILE__}, #{__LINE__})\n:" +
+           "#{e}\n#{e.backtrace.join("\n")}")
+      record_failure(e)
     end
   end
 
   # Send the specified 'request' to the server and call 'receive_response'
   # to obtain the response.
-  pre "request valid" do |request| request != nil and request.length > 0 end
+  pre :request_valid do |request| request != nil and request.length > 0 end
   def send_request(request)
     begin_communication
     send(request)
@@ -500,6 +569,15 @@ module MasCommunicationServices
 
   protected ### Utilities
 
+  # Assume a failure/exception occurred: Set communication_failed to true
+  # and last_exception to `e' (of type [or subtype of] Exception).
+  pre  :e_not_nil do |e| e != nil end
+  post :communication_failed do communication_failed end
+  post :last_exception_set do |e| @last_exception == e end
+  def record_failure(e)
+    @last_exception = e
+  end
+
   # Message, from 'parts' (array of message components), to be sent to the
   # server, with field-separators and EOM added.
   def constructed_message(parts)
@@ -509,7 +587,7 @@ module MasCommunicationServices
   # Set '@server_closed_connection' from the server's response.
   def set_server_closed_connection
     @server_closed_connection = false
-    if last_response_components != nil
+    if last_response_components != nil then
       response_code = Integer(last_response_components[MSG_STATUS_IDX])
       @server_closed_connection = response_code >= WILL_CLOSE_BOTTOM &&
         response_code <= WILL_CLOSE_TOP
@@ -517,10 +595,10 @@ module MasCommunicationServices
   end
 
   def init_ptype_specs(specs)
-    if @period_type_specs.nil?
+    if @period_type_specs.nil? then
       @period_type_specs = {}
     end
-    if specs != nil
+    if specs != nil then
       specs.each do |s|
         @period_type_specs[s.period_type] = s
       end
@@ -534,7 +612,7 @@ module MasCommunicationServices
     date_sep = DATA_REQ_DATE_FIELD_SEPARATOR
     format = "%0Y#{date_sep}%0m#{date_sep}%0d"
     result = start_date.strftime(format)
-    if end_date != nil
+    if end_date != nil then
       result += START_END_DATE_SEPARATOR + end_date.strftime(format)
     end
     result
@@ -543,7 +621,7 @@ module MasCommunicationServices
   def fill_parameters_from_response_list(param_array)
     name_index, value_index, type_index = 0, 1, 2
     lines = list_from_response
-    if lines.length > 0
+    if lines.length > 0 then
       (0..lines.count-1).each do |i|
         parts = lines[i].split(MESSAGE_COMPONENT_SEPARATOR)
         param_array << tradable_factory.new_parameter(name: parts[name_index],

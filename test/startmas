@@ -2,6 +2,23 @@
 # Start the mas server for testing.
 # vi: expandtab
 
+
+mas_running() {
+    if [ $# == 0 ]; then return 255; fi
+    p=$1
+    if pgrep $pgrep_opts "mas *-b.*$p" >/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+start_mas_server() {
+    if [ $# == 0 ]; then return 255; fi
+    p=$1
+    $exe -b -f , $p *.txt&
+}
+
 if [ -z "$TATDEV" ]; then
     echo "Error: TATDEV env. var. not set" >&2
     exit 42
@@ -24,9 +41,15 @@ if [ $# -gt 0 ]; then
     esac
 fi
 
-# Exit if mas is already running.
-if pgrep $pgrep_opts "mas *-b.*$MASPORT" >/dev/null; then exit 0; fi
-if pgrep $pgrep_opts "masx.*-b.*$MASPORT" >/dev/null; then exit 0; fi
-if pgrep $pgrep_opts "oldmas *-b.*$MASPORT" >/dev/null; then exit 0; fi
-$exe -b -f , $ports *.txt&
-sleep 1 # Give the server a chance to start-up/initialize.
+all_mas_procs_were_running=true
+for p in $ports; do
+    if mas_running $p; then
+        :
+    else
+        start_mas_server $p
+        all_mas_procs_were_running=false
+    fi
+done
+if ! eval "$all_mas_procs_were_running"; then
+    sleep 1 # Give the server a chance to start-up/initialize.
+fi

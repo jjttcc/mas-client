@@ -12,6 +12,10 @@ end
 class MasTimeoutError < MasRuntimeError
 end
 
+# Errors/exceptions indicating an error-status response from the server
+class MasServerError < MasRuntimeError
+end
+
 # Services/tools for communication with the Market-Analysis server
 module MasCommunicationServices
   include MasCommunicationProtocol, TimePeriodTypeConstants
@@ -42,7 +46,8 @@ module MasCommunicationServices
 
   public ###  Status report
 
-  # Did an interaction (connect, read, etc) with the server fail?
+  # Did a system-level interaction with the server fail?  (E.g.,
+  # connection refused, time-out, etc. - I.e., )
   def communication_failed
     last_exception != nil
   end
@@ -77,6 +82,7 @@ module MasCommunicationServices
       $log.warn("'logout' from server failed with error: #{e}")
     end
     finish_logout
+$log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
     @session_key = nil
   end
 
@@ -505,16 +511,24 @@ module MasCommunicationServices
     if mas_session then
       @session_key = mas_session.mas_session_key.to_s
     end
+$log.debug("[initialize] MAS_SESSION:\n#{mas_session.inspect}")
     init_ptype_specs(args['period.*type'])
     initialize_communication(args[:host], args[:port], args[:close_after_w])
     if args[:timeout] then initialize_timeout(args[:timeout]) end
     if mas_session.nil? then
-      $log.debug('No mas session yet - need to log in.')
+      $log.debug('No mas session yet - logging in....')
       execute_request(initial_message)
       if ! communication_failed then
         @session_key = key_from_response
+$log.debug("<<<logged in with NEW key: #{@session_key}>>>")
+      else
+$log.debug("<<<I'm afraid I can't let you do that, Dave.>>>")
       end
+else
+$log.debug("<<<NO login NEEDED - key is: #{@session_key}>>>")
     end
+$log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
+           " [stack:\n#{caller.join("\n")}\n]")
   end
 
   # Execute the specified 'request' to the server and call process_response
@@ -539,15 +553,20 @@ module MasCommunicationServices
       end
       set_server_closed_connection
       if not response_ok? then
-        raise "Server returned error status: #{last_response}"
+        raise MasServerError.new(
+          "Server returned error status: #{last_response}")
       end
+    rescue MasServerError => e
+      $log.debug("caught MasServerError (#{__FILE__}, #{__LINE__})\n:" +
+                 "#{e}\n#{e.backtrace.join("\n")}")
+      raise e
     rescue MasRuntimeError => e
-$log.debug("caught MasRuntimeError (#{__FILE__}, #{__LINE__}):\n" +
-           "#{e}\n#{e.backtrace.join("\n")}")
+      $log.debug("caught MasRuntimeError (#{__FILE__}, #{__LINE__}):\n" +
+                 "#{e}\n#{e.backtrace.join("\n")}")
       record_failure(e)
     rescue RuntimeError => e
-$log.debug("caught RuntimeError (#{__FILE__}, #{__LINE__})\n:" +
-           "#{e}\n#{e.backtrace.join("\n")}")
+      $log.debug("caught RuntimeError (#{__FILE__}, #{__LINE__})\n:" +
+                 "#{e}\n#{e.backtrace.join("\n")}")
       record_failure(e)
     end
   end

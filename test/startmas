@@ -33,7 +33,7 @@ if lsb_release -a 2>/dev/null|egrep -qi 'ubuntu'; then
     pgrep_opts='-lf'
 fi
 cd $script_path >/dev/null
-ports=$(for p in $MASPORT 5441 5442 5443 5444; do echo $p;done|sort -u)
+ports=$(for p in 5441 5442 5443 5444; do echo $p;done|sort -u)
 exe=mas
 if [ $# -gt 0 ]; then
     case $1 in

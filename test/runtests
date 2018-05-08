@@ -33,20 +33,57 @@ rehide_tradable_ana() {
     pushd
 }
 
-script_name=test_mas_client.rb
+param=parameter_test.rb
+ind=indicator_test.rb
+ana=analyzer_test.rb
+data=data_test.rb
+asso=assorted_tests.rb
+allname_ptrn="-name test_mas_client.rb"
+if [ $# -gt 0 ]; then
+    case $1 in
+        *param*)
+            script_name_ptrn="-name $param"
+            shift
+            ;;
+        *ind*)
+            script_name_ptrn="-name $ind"
+            shift
+            ;;
+        *ana*)
+            script_name_ptrn="-name $ana"
+            shift
+            ;;
+        *data*)
+            script_name_ptrn="-name $data"
+            shift
+            ;;
+        *other*|*asso*)
+            script_name_ptrn="-name $asso"
+            shift
+            ;;
+        [a-z]*)
+            script_name_ptrn="$allname_ptrn"
+            shift
+            ;;
+    esac
+fi
+if [ -z "$script_name_ptrn" ]; then
+    # Default to all test scripts.
+    script_name_ptrn="$allname_ptrn"
+fi
 found_script=true
 export RUBYLIB='$PWD/../utility:$PWD/../app/mas_bridge'
 if [ -z "$MASPORT" ]; then  # test script depends on $MASPORT env var
     export MASPORT=5441
 fi
 iterations=1
-test_script=$(find . -name $script_name)
+test_script=$(find . $script_name_ptrn)
 if [ -z "$test_script" ]; then
     if [ -z "$TATDEV" ]; then
         found_script=false
         echo "TATDEV env. var. not set." >&2
     else
-        test_script=$(find $TATDEV -name $script_name)
+        test_script=$(find $TATDEV -name $script_name_ptrn)
         if [ -z "$test_script" ]; then
             found_script=false
         fi
@@ -56,7 +93,7 @@ if ! eval $found_script; then
     echo "Could not find test script $script_name" >&2
     exit 42
 fi
-testdir=$(dirname $test_script)
+testdir=$(dirname $test_script|sed 's@ .*@@')
 #restore_tradable_ana $testdir
 
 if [ $# -gt 0 ]; then iterations=$1; fi

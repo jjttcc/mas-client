@@ -127,7 +127,7 @@ $log.debug("[socket_response] select timed out (#{timeout} seconds)")
 $log.debug("[socket_response] [6] (buf != :wait_readable)")
           # Data IS available - "actual data"
           result << buf.to_s
-          end_of_message = result[-1] == EOM
+          end_of_message = result[-1] == EOM || buf.empty?
 $log.debug("[socket_response] [7] - eom? - #{end_of_message}")
         end
       end

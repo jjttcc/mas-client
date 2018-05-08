@@ -205,6 +205,7 @@ module ParameterTestTools
   # the request.
   def client_request_for(indname, pnames_to_include = nil)
     value_for = @param_settings_for[indname]
+#!!!!!Get rid of <sorted...>????!!!!
     sorted_names = value_for.keys.sort
     result = []
     (0 .. sorted_names.count-1).each do |i|
@@ -223,6 +224,33 @@ module ParameterTestTools
 
   def change_param_value(ind_name, param_name, value)
     @param_settings_for[ind_name][param_name] = value
+  end
+
+  # A mapping of each element 'o' (of 'objs') to the number of times
+  # 'o.name' occurs in 'objs' (expected to be an Array).
+  # Result: hash table: o => occurrences
+  # verbose => report # of occurrences of each object, by name, in result.
+  def duplicate_names(objs, verbose = false)
+    name_to_dupcount = {}
+    name_to_obj = objs.map{ |o| [o.name, o] }.to_h
+    objs.each do |o|
+      if name_to_dupcount.has_key?(o.name) then
+        name_to_dupcount[o.name] += 1
+      else
+        name_to_dupcount[o.name] = 1
+      end
+    end
+    result = {}
+    name_to_dupcount.keys.each do |name|
+      if name_to_dupcount[name] > 1 then
+        result[name_to_obj[name]] = name_to_dupcount[name]
+      end
+      if verbose then
+        $stderr.puts "object with name <#{name}> has: " +
+          "#{name_to_dupcount[name]} occurrences"
+      end
+    end
+    result
   end
 
 end

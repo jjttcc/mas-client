@@ -91,15 +91,19 @@ module MasCommunicationProtocol
   # Response indicating that no errors occurred (server closed socket)
 
   INVALID_SYMBOL      = 103
-  # Response indicating that the server requested data for
+  # Response indicating that the client requested data for
   # a symbol that is not in the database
 
   WARNING             = 104
   # Response indicating that a non-fatal error occurred
 
   INVALID_PERIOD_TYPE = 105
-  # Response indicating that the server requested data for
+  # Response indicating that the client requested data for
   # a period type that is not in the database
+
+  INVALID_OBJECT_NAME = 106
+  # Response indicating that the client specified a name (such
+  # as an indicator name) that does not exist
 
   ### "will-not-close" (socket) versions of the above codes
 
@@ -119,6 +123,9 @@ module MasCommunicationProtocol
 
   INVALID_PERIOD_TYPE_WILL_NOT_CLOSE = 205
   # "will-not_close" version of INVALID_PERIOD_TYPE
+
+  INVALID_OBJECT_NAME_WILL_NOT_CLOSE = 206
+  #  "will-not-close" version of 'invalid_object_name'
 
   public  ### Server response strings
 

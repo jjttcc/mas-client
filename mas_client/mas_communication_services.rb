@@ -16,7 +16,7 @@ end
 class MasServerError < MasRuntimeError
 end
 
-# Services/tools for communication with the Market-Analysis server
+# Services/tools for communication with the Market-Analysis-System server
 module MasCommunicationServices
   include MasCommunicationProtocol, TimePeriodTypeConstants
   include Contracts::DSL
@@ -26,7 +26,7 @@ module MasCommunicationServices
   attr_reader :session_key, :symbols, :indicators, :period_types,
     :tradable_data, :indicator_data, :analyzers, :analysis_data,
     :mas_session, :indicator_parameters, :analysis_parameters,
-    :object_info, :last_exception
+    :object_info, :last_exception, :last_server_error
 
   public ### Access
 
@@ -49,12 +49,29 @@ module MasCommunicationServices
   # Did a system-level interaction with the server fail?  (E.g.,
   # connection refused, time-out, etc. - I.e., )
   def communication_failed
-    last_exception != nil
+    @last_exception != nil
+  end
+
+  # Did the MAS server respond with an error status?
+  def server_error
+    @last_server_error != nil
   end
 
   # The type/class of the last exception for which 'communication_failed'
   def last_exception_type
     result = @last_exception.class
+  end
+
+  # A description of the last error, if any, that occurred
+  post :not_nil do |result| ! result.nil? end
+  def last_error_msg
+    result = ""
+    if communication_failed then
+      result = @last_exception.to_s
+    else
+      result = @last_server_error.to_s
+    end
+    result
   end
 
   public  ###  Element change
@@ -243,21 +260,23 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
   type @analyzers => Array
   def request_analyzers(symbol, period_type = DAILY)
     if ! (period_type == nil || @@period_types.include?(period_type)) then
-      raise "invalid period_type: #{period_type.inspect}"
-    end
-    id_index = 1; name_index = 0
-    request = constructed_message([EVENT_LIST_REQUEST, session_key,
-                                  symbol, period_type])
-    execute_request(request, method(:process_data_response))
-    if ! communication_failed then
-      lines = list_from_response
-      @analyzers = []
-      if lines.length > 0 then
-        @analyzers = lines.map do |line|
-          parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
-          tradable_factory.new_analyzer(id: parts[id_index],
-                                        name: parts[name_index],
-                                        period_type: period_type)
+      @last_server_error = MasServerError.new(
+        "invalid period_type: #{period_type.inspect}")
+    else
+      id_index = 1; name_index = 0
+      request = constructed_message([EVENT_LIST_REQUEST, session_key,
+                                     symbol, period_type])
+      execute_request(request, method(:process_data_response))
+      if ! communication_failed then
+        lines = list_from_response
+        @analyzers = []
+        if lines.length > 0 then
+          @analyzers = lines.map do |line|
+            parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
+            tradable_factory.new_analyzer(id: parts[id_index],
+                                          name: parts[name_index],
+                                          period_type: period_type)
+          end
         end
       end
     end
@@ -490,8 +509,8 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
 
   # Was a successful/OK status resported as part of the last response?
   def response_ok?
-    response_code = Integer(last_response_components[MSG_STATUS_IDX])
-    response_code == OK or response_code == OK_WILL_NOT_CLOSE
+    @response_code = Integer(last_response_components[MSG_STATUS_IDX])
+    @response_code == OK or @response_code == OK_WILL_NOT_CLOSE
   end
 
   private
@@ -533,7 +552,7 @@ $log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
 
   # Execute the specified 'request' to the server and call process_response
   # with the server's response (in 'last_response').  Check if the server
-  # returned OK status, and, if not, raise an appropriate exception.  If
+  # returned OK status, and, if not, !!!fix:raise an appropriate exception.  If
   # 'processor' is not nil, it will be called to process the server's
   # response; otherwise, process_response will be called.
   pre :request_valid do |request| request != nil and request.length > 0 end
@@ -542,7 +561,7 @@ $log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
   post :last_resp_comp_array do implies(! communication_failed,
                             last_response_components.class == [].class) end
   def execute_request(request, processor = nil)
-    @last_exception = nil
+    @last_exception, @last_server_error, @response_code = nil, nil, nil
     begin
       @last_response_components = nil
       send_request(request)
@@ -553,21 +572,19 @@ $log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
       end
       set_server_closed_connection
       if not response_ok? then
-        raise MasServerError.new(
-          "Server returned error status: #{last_response}")
+        @last_server_error = MasServerError.new("Server returned error " +
+          "status: #{last_response} [code: #{@response_code}]")
+        $log.debug("MasServerError (#{__FILE__}, #{__LINE__})\n:" +
+                   @last_server_error.to_s + "#{caller.join("\n")}")
       end
-    rescue MasServerError => e
-      $log.debug("caught MasServerError (#{__FILE__}, #{__LINE__})\n:" +
-                 "#{e}\n#{e.backtrace.join("\n")}")
-      raise e
     rescue MasRuntimeError => e
       $log.debug("caught MasRuntimeError (#{__FILE__}, #{__LINE__}):\n" +
                  "#{e}\n#{e.backtrace.join("\n")}")
-      record_failure(e)
+      @last_exception = e
     rescue RuntimeError => e
       $log.debug("caught RuntimeError (#{__FILE__}, #{__LINE__})\n:" +
                  "#{e}\n#{e.backtrace.join("\n")}")
-      record_failure(e)
+      @last_exception = e
     end
   end
 
@@ -588,15 +605,6 @@ $log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
 
   protected ### Utilities
 
-  # Assume a failure/exception occurred: Set communication_failed to true
-  # and last_exception to `e' (of type [or subtype of] Exception).
-  pre  :e_not_nil do |e| e != nil end
-  post :communication_failed do communication_failed end
-  post :last_exception_set do |e| @last_exception == e end
-  def record_failure(e)
-    @last_exception = e
-  end
-
   # Message, from 'parts' (array of message components), to be sent to the
   # server, with field-separators and EOM added.
   def constructed_message(parts)
@@ -607,9 +615,9 @@ $log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
   def set_server_closed_connection
     @server_closed_connection = false
     if last_response_components != nil then
-      response_code = Integer(last_response_components[MSG_STATUS_IDX])
-      @server_closed_connection = response_code >= WILL_CLOSE_BOTTOM &&
-        response_code <= WILL_CLOSE_TOP
+      @response_code = Integer(last_response_components[MSG_STATUS_IDX])
+      @server_closed_connection = @response_code >= WILL_CLOSE_BOTTOM &&
+        @response_code <= WILL_CLOSE_TOP
     end
   end
 

@@ -8,31 +8,43 @@ class ParameterTest < MiniTest::Test
   include ParameterTestTools
 
   def test_check_all_indicator_parameters
-    fail = false
+    try_to_fail = true
+    # Use this to isolate one indicator (e.g.,
+    # "Trend" for "Slope of MACD Signal Line Trend"):
+    target_pattern = ""
     $client.request_indicators("ibm", MasClient::DAILY)
     failures = []
     indicators = $client.indicators
     assert indicators.length > 0
     indicators.each do |i|
-      $client.request_indicator_parameters(i)
-      parameters = $client.indicator_parameters
-      if parameters.count == 0 then verbose_report "#{i} has 0 params" end
-      $client.indicator_parameters.each do |p|
-        verbose_report "#{p.value} [#{p.type_desc}, #{p.name}]"
-      end
-      dups = duplicate_names(parameters, InitialSetup::verbose)
-      if dups.count > 0 then
-        failures << i + ":\n" + dups.keys.inject("")do |result,x|
-          "#{result}\n#{x.name}: #{dups[x]} occurrences"
+      if i =~ /#{target_pattern}/ then
+        verbose_report "<<<current indicator: #{i}>>>"
+        $client.request_indicator_parameters(i)
+        if $client.server_error then
+          msg = "#{$client.last_error_msg}"
+          verbose_report msg
+          failures << msg
+        else
+          parameters = $client.indicator_parameters
+          if parameters.count == 0 then verbose_report "#{i} has 0 params" end
+          $client.indicator_parameters.each do |p|
+            verbose_report "#{p.value} [#{p.type_desc}, #{p.name}]"
+          end
+          dups = duplicate_names(parameters, InitialSetup::verbose)
+          if dups.count > 0 then
+            failures << i + ":\n" + dups.keys.inject("")do |result,x|
+              "#{result}\n#{x.name}: #{dups[x]} occurrences"
+            end
+            verbose_report "(dups for #{i}:"
+            dups.keys.each do |dup|
+              verbose_report "#{dup.name}: #{dups[dup]}"
+            end
+            verbose_report ")"
+          end
         end
-        verbose_report "(dups for #{i}:"
-        dups.keys.each do |dup|
-          verbose_report "#{dup.name}: #{dups[dup]}"
-        end
-        verbose_report ")"
       end
     end
-    if fail then
+    if try_to_fail then
       assert failures.empty?, "duplicate parameter names:\n" +
         failures.join("\n")
     else
@@ -42,7 +54,7 @@ class ParameterTest < MiniTest::Test
     end
   end
 
-  def skip_test_check_all_analyzer_parameters
+  def test_check_all_analyzer_parameters
     $client.request_analyzers("ibm", MasClient::DAILY)
     failures = []
     analyzers = $client.analyzers
@@ -72,7 +84,7 @@ class ParameterTest < MiniTest::Test
       failures.join("\n")
   end
 
-  def skip_test_slope_of_macd_signal_line_trend
+  def test_slope_of_macd_signal_line_trend
     indname = "Slope of MACD Signal Line Trend"
     dups_not_shared = true
     seqnum_for = {}
@@ -501,7 +513,7 @@ class ParameterTest < MiniTest::Test
     end
   end
 
-  def test_analyzer_parameters_modification3
+  def fix_this_test_analyzer_parameters_modification3
     switch_to_analyzers
     failures = []
     anames = [

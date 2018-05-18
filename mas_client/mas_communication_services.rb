@@ -573,7 +573,7 @@ $log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
       set_server_closed_connection
       if not response_ok? then
         @last_server_error = MasServerError.new("Server returned error " +
-          "status: #{last_response} [code: #{@response_code}]")
+          "status: #{last_response}")
         $log.debug("MasServerError (#{__FILE__}, #{__LINE__})\n:" +
                    @last_server_error.to_s + "#{caller.join("\n")}")
       end

@@ -3,6 +3,9 @@ require 'minitest/autorun'
 require_relative './test_setup'
 
 
+# NOTE: Some of these tests are unstable because the source (stock) data
+# is not "locked down" - i.e., it could change and thus change the test
+# results as a consequence.
 class ParameterTest < MiniTest::Test
   include TestSetup
   include ParameterTestTools
@@ -434,6 +437,7 @@ class ParameterTest < MiniTest::Test
     end
   end
 
+  # (Note: This test is unstable. See note at top [above class ParameterTest]).
   def test_analyzer_parameters_modification2
     symbol = 'ibm'
     # (Log 2 clients in, set different parameter-settings for the same
@@ -457,7 +461,7 @@ class ParameterTest < MiniTest::Test
     ana_name = 'Slope of MACD Signal Line Cross Above 0 (Buy)'
     slope_macd_sl0_idx = 5
     start_date = DateTime.new(2012, 01, 01)
-    end_date = DateTime.new(2014, 07, 01)
+    end_date = DateTime.new(2038, 07, 01)
     # Note the "- 1", due to the MAS interface using indexes starting at 1:
     selected = [analyzers2[slope_macd_sl0_idx - 1]]
     assert selected[0].name == ana_name, 'correct analyzer'
@@ -471,7 +475,8 @@ class ParameterTest < MiniTest::Test
       cl1data = $client1.analysis_data
       assert cl1data != cl2data, 'cl1/cl2 data should differ'
       assert cl1data[0] != cl2data[0], 'cl1[0]/cl2[0] data should differ'
-      assert cl1data.count != cl2data.count, 'cl1/cl2 counts should differ'
+      assert cl1data.count != cl2data.count, 'cl1/cl2 counts should differ' +
+        "(#{cl1data.count} vs #{cl2data.count})"
       # Test that client2's parameters don't step on client1's parameters.
       do_analysis(symbol, period_type, selected, start_date, end_date, $client1)
       cl1data_II = $client1.analysis_data
@@ -479,9 +484,11 @@ class ParameterTest < MiniTest::Test
       cl2data_II = $client2.analysis_data
       assert cl1data_II != cl2data_II, 'cl1-later vs cl2-later differ'
       assert cl2data_II[0].datetime != cl1data_II[0].datetime,
-        'first event not equal'
+        'first event date not equal'
+      cl2data_II[-1]
       assert cl2data_II[-1].datetime != cl1data_II[-1].datetime,
-        'last event not equal'
+        "last event date not equal " +
+        "[#{cl2data_II[-1].datetime} vs #{cl1data_II[-1].datetime}]"
       assert cl1data.count == cl1data_II.count, 'cl1 - consitent counts'
       assert cl2data_II.count != cl1data_II.count, 'cl1 vs cl2 - counts differ'
       assert cl2data.count == cl2data_II.count, 'cl2 - consitent counts'

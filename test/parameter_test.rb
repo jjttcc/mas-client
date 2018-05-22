@@ -111,7 +111,6 @@ class ParameterTest < MiniTest::Test
         $stderr.puts rep
       end
     end
-    $stderr.puts "parameter value report:"
     parameters.each { |p| param_report.call(p) }
     if dups.count > 0 then
       pick = dups.count / 2

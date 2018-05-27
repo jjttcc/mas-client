@@ -1,3 +1,8 @@
+
+DAILY_PERIOD_TYPE = "daily"
+WEEKLY_PERIOD_TYPE = "weekly"
+MONTHLY_PERIOD_TYPE = "monthly"
+
 # (Copied from:
 # http://stackoverflow.com/questions/1197224/source-shell-script-into-environment-within-a-ruby-script)
 
@@ -84,7 +89,7 @@ module TestSetup
       HASHTABLE = {
         host: 'localhost', port: ENV['MASPORT'],
         factory: TradableObjectFactory.new, close_after_w: false,
-        timeout: 4,
+        timeout: 45555,
       }
     end
 
@@ -95,7 +100,7 @@ module TestSetup
       else
         if InitialSetup::verbose then puts "Using MasClient" end
         result = MasClient.new(host: 'localhost', port: port,
-                               factory: TradableObjectFactory.new, timeout: 4)
+                               factory: TradableObjectFactory.new, timeout: 45555)
       end
       result
     end
@@ -163,10 +168,14 @@ module TestSetup
     assert ! $client.logged_in
   end
 
-  def do_analysis(symbol, period_type, selected_analyzers, startdt, enddt,
+  def do_analysis(symbol, period_types, selected_analyzers, startdt, enddt,
                   client = $client)
     events = client.analysis_data
-    client.request_analysis(selected_analyzers, symbol, startdt, enddt)
+    client.request_analysis(selected_analyzers, period_types, symbol,
+                            startdt, enddt)
+    if client.server_error then
+      assert false, client.last_error_msg
+    end
     events = client.analysis_data
     if events.length > 1
       verbose_report "\n#{events.length} events:"

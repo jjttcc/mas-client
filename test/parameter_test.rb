@@ -1,7 +1,7 @@
 require 'ruby_contracts'
 require 'minitest/autorun'
 require_relative './test_setup'
-
+require_relative './analysis_oracle'
 
 # NOTE: Some of these tests are unstable because the source (stock) data
 # is not "locked down" - i.e., it could change and thus change the test
@@ -63,24 +63,32 @@ class ParameterTest < MiniTest::Test
     analyzers = $client.analyzers
     assert analyzers.length > 0
     analyzers.each do |a|
-      $client.request_analysis_parameters(a.name)
-      parameters = $client.analysis_parameters
-      if parameters.count == 0 then verbose_report "#{a.name} has 0 params" end
-      if InitialSetup::verbose then
-        parameters.each do |p|
-          puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+      $client.request_analysis_parameters(a.name, DAILY_PERIOD_TYPE)
+      if $client.server_error then
+        msg = "#{$client.last_error_msg}"
+        verbose_report msg
+        failures << msg
+      else
+        parameters = $client.analysis_parameters
+        if parameters.count == 0 then
+          verbose_report "#{a.name} has 0 params"
         end
-      end
-      dups = duplicate_names(parameters, InitialSetup::verbose)
-      if dups.count > 0 then
-        failures << a.name + ":\n" + dups.keys.inject("")do |result,x|
-          "#{result}\n#{x.name}: #{dups[x]} occurrences"
+        if InitialSetup::verbose then
+          parameters.each do |p|
+            puts "#{p.value} [#{p.type_desc}, #{p.name}]"
+          end
         end
-        verbose_report "(dups for #{a.name}:"
-        dups.keys.each do |dup|
-          verbose_report "#{dup.name}: #{dups[dup]}"
+        dups = duplicate_names(parameters, InitialSetup::verbose)
+        if dups.count > 0 then
+          failures << a.name + ":\n" + dups.keys.inject("")do |result,x|
+            "#{result}\n#{x.name}: #{dups[x]} occurrences"
+          end
+          verbose_report "(dups for #{a.name}:"
+          dups.keys.each do |dup|
+            verbose_report "#{dup.name}: #{dups[dup]}"
+          end
+          verbose_report ")"
         end
-        verbose_report ")"
       end
     end
     assert failures.empty?, "duplicate parameter names:\n" +
@@ -385,6 +393,8 @@ class ParameterTest < MiniTest::Test
       assert cl2data == cl2data_II, 'cl2 vs cl2-later data should NOT differ'
       assert cl1data_II != cl2data_II, 'cl1-later vs cl2-later differ'
     end
+    $client1.logout
+    $client2.logout
   end
 
   def test_analyzer_parameters
@@ -393,7 +403,7 @@ class ParameterTest < MiniTest::Test
     analyzers = $client.analyzers
     assert analyzers.length > 0
     analyzers.each do |a|
-      $client.request_analysis_parameters(a.name)
+      $client.request_analysis_parameters(a.name, DAILY_PERIOD_TYPE)
       $client.analysis_parameters.each do |p|
         verbose_report "#{p.value} [#{p.type_desc}, #{p.name}]"
         assert p.valid?, "param #{p.inspect} is valid"
@@ -413,26 +423,35 @@ class ParameterTest < MiniTest::Test
     selected = [analyzers[slope_macd_sl0_idx - 1]]
     assert selected[0].name == ana_name, 'correct analyzer'
     ['daily'].each do |period_type|
-      $client.request_analysis_parameters_modification(ana_name, "2:3,3:19")
-      do_analysis(symbol, period_type, selected, start_date, end_date)
-      data1 = $client.analysis_data
-      count1 = data1.count
+      $client.request_analysis_parameters_modification(ana_name,
+          DAILY_PERIOD_TYPE, "2:3,3:19")
+      if $client.server_error then
+        msg = "#{$client.last_error_msg}"
+        verbose_report msg
+        assert false, msg
+      else
+        do_analysis(symbol, [period_type], selected, start_date, end_date)
+        data1 = $client.analysis_data
+        count1 = data1.count
 
-      $client.request_analysis_parameters_modification(ana_name, "2:13,3:26")
-      do_analysis(symbol, period_type, selected, start_date, end_date)
-      data2 = $client.analysis_data
-      count2 = data2.count
-      assert data1 != data2, 'result of different params not equal'
-      assert data1[0] != data2[0], 'first event not equal [1 vs 2]'
-      assert count1 != count2, 'counts not equal [1 vs 2]'
+        $client.request_analysis_parameters_modification(ana_name,
+            DAILY_PERIOD_TYPE, "2:13,3:26")
+        do_analysis(symbol, [period_type], selected, start_date, end_date)
+        data2 = $client.analysis_data
+        count2 = data2.count
+        assert data1 != data2, 'result of different params not equal'
+        assert data1[0] != data2[0], 'first event not equal [1 vs 2]'
+        assert count1 != count2, 'counts not equal [1 vs 2]'
 
-      $client.request_analysis_parameters_modification(ana_name, "2:39,3:97")
-      do_analysis(symbol, period_type, selected, start_date, end_date)
-      data3 = $client.analysis_data
-      count3 = data3.count
-      assert data1 != data3, 'result of different params not equal[2]'
-      assert data1[0] != data3[0], 'first event not equal [1 vs 3]'
-      assert count1 != count3, 'counts not equal [1 vs 3]'
+        $client.request_analysis_parameters_modification(ana_name,
+            DAILY_PERIOD_TYPE, "2:39,3:97")
+        do_analysis(symbol, [period_type], selected, start_date, end_date)
+        data3 = $client.analysis_data
+        count3 = data3.count
+        assert data1 != data3, 'result of different params not equal[2]'
+        assert data1[0] != data3[0], 'first event not equal [1 vs 3]'
+        assert count1 != count3, 'counts not equal [1 vs 3]'
+      end
     end
   end
 
@@ -466,10 +485,14 @@ class ParameterTest < MiniTest::Test
     assert selected[0].name == ana_name, 'correct analyzer'
 
     ['daily'].each do |period_type|
-      $client1.request_analysis_parameters_modification(ana_name, "2:5,3:13")
-      do_analysis(symbol, period_type, selected, start_date, end_date, $client1)
-      $client2.request_analysis_parameters_modification(ana_name, "2:27,3:43")
-      do_analysis(symbol, period_type, selected, start_date, end_date, $client2)
+      $client1.request_analysis_parameters_modification(ana_name,
+          DAILY_PERIOD_TYPE, "2:5,3:13")
+      do_analysis(symbol, [period_type], selected, start_date, end_date,
+                  $client1)
+      $client2.request_analysis_parameters_modification(ana_name,
+          DAILY_PERIOD_TYPE, "2:27,3:43")
+      do_analysis(symbol, [period_type], selected, start_date, end_date,
+                  $client2)
       cl2data = $client2.analysis_data
       cl1data = $client1.analysis_data
       assert cl1data != cl2data, 'cl1/cl2 data should differ'
@@ -477,9 +500,11 @@ class ParameterTest < MiniTest::Test
       assert cl1data.count != cl2data.count, 'cl1/cl2 counts should differ' +
         "(#{cl1data.count} vs #{cl2data.count})"
       # Test that client2's parameters don't step on client1's parameters.
-      do_analysis(symbol, period_type, selected, start_date, end_date, $client1)
+      do_analysis(symbol, [period_type], selected, start_date, end_date,
+                  $client1)
       cl1data_II = $client1.analysis_data
-      do_analysis(symbol, period_type, selected, start_date, end_date, $client2)
+      do_analysis(symbol, [period_type], selected, start_date, end_date,
+                  $client2)
       cl2data_II = $client2.analysis_data
       assert cl1data_II != cl2data_II, 'cl1-later vs cl2-later differ'
       assert cl2data_II[0].datetime != cl1data_II[0].datetime,
@@ -517,6 +542,180 @@ class ParameterTest < MiniTest::Test
           'same ana-ids 2'
       end
     end
+    $client1.logout
+    $client2.logout
+  end
+
+  def test_analysis_daily_vs_weekly
+    symbol = 'ibm'
+    cl1ptype = DAILY_PERIOD_TYPE
+    cl2ptype = WEEKLY_PERIOD_TYPE
+    # (Log 2 clients in - use daily period-type for client1 and weekly for
+    # client 2; with the same analyzer, use the same parameter settings for
+    # both and verify that the results for client 1 are different from those
+    # of client 2.
+    $client1 = InitialSetup::new_client
+    $client2 = InitialSetup::new_client
+    param_settings = "2:5,3:13"
+    $client1.request_analyzers(symbol, MasClient::DAILY)
+    $client2.request_analyzers(symbol, MasClient::DAILY)
+    analyzers1 = $client1.analyzers
+    analyzers2 = $client2.analyzers
+    assert analyzers1.count == analyzers2.count, 'analyzer lists counts equal'
+    ana_name = 'Slope of MACD Signal Line Cross Above 0 (Buy)'
+    slope_macd_sl0_idx = 4
+    start_date = DateTime.new(2010, 01, 01)
+    end_date = DateTime.new(2015, 07, 01)
+    selected = [analyzers2[slope_macd_sl0_idx]]
+    assert selected[0].name == ana_name, 'correct analyzer'
+    $client1.request_analysis_parameters_modification(ana_name, cl1ptype,
+                                                      param_settings)
+    do_analysis(symbol, [cl1ptype], selected, start_date, end_date, $client1)
+    # (Use the same param_settings for $client1 and $client2.)
+    $client2.request_analysis_parameters_modification(ana_name, cl2ptype,
+                                                      param_settings)
+    do_analysis(symbol, [cl2ptype], selected, start_date, end_date, $client2)
+    cl2data = $client2.analysis_data
+    cl1data = $client1.analysis_data
+    assert cl1data != cl2data, 'cl1/cl2 data should differ'
+    assert cl1data[0] != cl2data[0], 'cl1/cl2 1st elements should differ'
+    assert cl1data.count > cl2data.count, 'cl1-count > cl2-count expected' +
+      " (#{cl1data.count} vs #{cl2data.count})"
+    $client1.logout
+    $client2.logout
+  end
+
+  def test_analysis_weekly_vs_monthly
+    symbol = 'ibm'
+    cl1ptype = WEEKLY_PERIOD_TYPE
+    cl2ptype = MONTHLY_PERIOD_TYPE
+    # (Log 2 clients in - use daily period-type for client1 and weekly for
+    # client 2; with the same analyzer, use the same parameter settings for
+    # both and verify that the results for client 1 are different from those
+    # of client 2.
+    $client1 = InitialSetup::new_client
+    $client2 = InitialSetup::new_client
+    param_settings = "2:5,3:13"
+    $client1.request_analyzers(symbol, MasClient::DAILY)
+    $client2.request_analyzers(symbol, MasClient::DAILY)
+    analyzers1 = $client1.analyzers
+    analyzers2 = $client2.analyzers
+    assert analyzers1.count == analyzers2.count, 'analyzer lists counts equal'
+    ana_name = 'Slope of MACD Signal Line Cross Above 0 (Buy)'
+    slope_macd_sl0_idx = 4
+    start_date = DateTime.new(2010, 01, 01)
+    end_date = DateTime.new(2015, 07, 01)
+    selected = [analyzers2[slope_macd_sl0_idx]]
+    assert selected[0].name == ana_name, 'correct analyzer'
+    $client1.request_analysis_parameters_modification(ana_name, cl1ptype,
+                                                      param_settings)
+    do_analysis(symbol, [cl1ptype], selected, start_date, end_date, $client1)
+    # (Use the same param_settings for $client1 and $client2.)
+    $client2.request_analysis_parameters_modification(ana_name, cl2ptype,
+                                                      param_settings)
+    do_analysis(symbol, [cl2ptype], selected, start_date, end_date, $client2)
+    cl2data = $client2.analysis_data
+    cl1data = $client1.analysis_data
+    assert cl1data != cl2data, 'cl1/cl2 data should differ'
+    assert cl1data[0] != cl2data[0], 'cl1/cl2 1st elements should differ'
+    assert cl1data.count > cl2data.count, 'cl1-count > cl2-count expected' +
+      " (#{cl1data.count} vs #{cl2data.count})"
+    $client1.logout
+    $client2.logout
+  end
+
+  def test_macd_xover_analysis
+    failures = []
+    ptype = DAILY_PERIOD_TYPE
+    $macd_xvr_client = InitialSetup::new_client
+    oracle = MACD_CrossoverBuyOracle.new
+    symbol = oracle.symbol
+    expected_count = oracle.expected_count
+    param_settings = "1:5,2:13,3:5,4:13,5:6"
+    $macd_xvr_client.request_analyzers(symbol)
+    analyzers = $macd_xvr_client.analyzers
+    assert analyzers.count > 2, 'analyzer count'
+    start_date = oracle.start_date
+    end_date = oracle.end_date
+    selected = [oracle.selected_analyzer(analyzers)]
+    assert selected.count > 0, 'analyzer found'
+    $macd_xvr_client.request_analysis_parameters_modification(
+      selected[0].name, ptype, param_settings)
+    if $macd_xvr_client.server_error then
+      msg = "#{$macd_xvr_client.last_error_msg}"
+      verbose_report msg
+      failures << msg
+    else
+      do_analysis(symbol, [ptype], selected, start_date, end_date,
+                  $macd_xvr_client)
+    end
+    assert failures.empty?, "parameter mod failures:\n" + failures.join("\n")
+    data = $macd_xvr_client.analysis_data
+    assert data.count == expected_count,
+      "data-count (#{data.count}) should be #{expected_count}"
+    assert oracle.results_correct(data), "data was incorrect"
+    param_settings = "1:12,2:26,3:12,4:26,5:6"
+    $macd_xvr_client.request_analysis_parameters_modification(
+      selected[0].name, ptype, param_settings)
+    do_analysis(symbol, [ptype], selected, start_date, end_date,
+                $macd_xvr_client)
+    data = $macd_xvr_client.analysis_data
+    # (With different parameter settings, the results should be different:)
+    assert ! oracle.results_correct(data), "data was unexpectedly correct"
+    $macd_xvr_client.logout
+  end
+
+  # Test "MACD Crossover ..." buy AND sell together: ~(2*buy) signals
+  def test_macd_xover_buy_and_sell_analysis
+    failures = []
+    ptype = DAILY_PERIOD_TYPE
+    ptypes = [ptype, ptype]
+    $macd_xvr_client = InitialSetup::new_client
+    oracle = MACD_CrossoverBuyOracle.new
+    symbol = oracle.symbol
+    single_ana_expected_count = oracle.expected_count
+    approx_count = single_ana_expected_count * 2
+    param_settings = "1:5,2:13,3:5,4:13,5:6"
+    $macd_xvr_client.request_analyzers(symbol)
+    analyzers = $macd_xvr_client.analyzers
+    assert analyzers.count > 2, 'analyzer count'
+    start_date = oracle.start_date
+    end_date = oracle.end_date
+    selected = oracle.selected_analyzers(analyzers,
+                                         'MACD\s*Crossover\s*.?(buy|sell)')
+    assert selected.count > 0, 'analyzer found'
+    selected.each do |a|
+      $macd_xvr_client.request_analysis_parameters_modification(a.name, ptype,
+                                                                param_settings)
+    end
+    if $macd_xvr_client.server_error then
+      msg = "#{$macd_xvr_client.last_error_msg}"
+      verbose_report msg
+      failures << msg
+    else
+      do_analysis(symbol, ptypes, selected, start_date, end_date,
+                  $macd_xvr_client)
+    end
+    assert failures.empty?, "parameter mod failures:\n" + failures.join("\n")
+    data = $macd_xvr_client.analysis_data
+    assert data.count > single_ana_expected_count,
+      "data-count (#{data.count}) should be > #{single_ana_expected_count}"
+    assert data.count > approx_count - 2 && data.count < approx_count + 2,
+      "data-count (#{data.count}) should be around #{approx_count}"
+    assert ! oracle.results_correct(data), 'data should NOT be "correct"'
+    param_settings = "1:12,2:26,3:12,4:26,5:6"
+    selected.each do |a|
+      $macd_xvr_client.request_analysis_parameters_modification(a.name, ptype,
+                                                                param_settings)
+    end
+    do_analysis(symbol, ptypes, selected, start_date, end_date,
+                $macd_xvr_client)
+    data = $macd_xvr_client.analysis_data
+    # (With different parameter settings, the results should be different:)
+    assert ! oracle.results_correct(data), "data was unexpectedly correct"
+    assert data.count < approx_count,
+      "data-count (#{data.count}) should be < #{approx_count}"
+    $macd_xvr_client.logout
   end
 
   def fix_this_test_analyzer_parameters_modification3

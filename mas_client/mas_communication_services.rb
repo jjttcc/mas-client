@@ -222,13 +222,13 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
   end
 
   # Request parameter settings for the specified analyzer.
-  type :in => String
   pre "logged in" do logged_in end
-  pre "args valid" do |ana_name| ana_name.length > 0 end
+  pre "args valid" do |ana_name, period_type| ana_name.length > 0 &&
+    period_type.length > 0 end
   type @analysis_parameters => Array
-  def request_analysis_parameters(analyzer_name)
+  def request_analysis_parameters(analyzer_name, period_type)
     request = constructed_message([ANALYSIS_PARAMETERS_REQUEST, session_key,
-                                   analyzer_name])
+                                   analyzer_name, period_type])
     execute_request(request, method(:process_data_response))
     if ! communication_failed then
       @analysis_parameters = []
@@ -239,13 +239,14 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
   # Request modification of parameter settings for the specified analyzer.
   # (request format:
   # <ana-name>\t<param-idx1>:<value1>,<param-idx2>:<value2>...)
-  type :in => [String, String]
+  type :in => [String, String, String]
   pre "logged in" do logged_in end
-  pre "args valid" do |ind_name, specs|
-    ind_name.length > 0 && specs.length > 0 end
-  def request_analysis_parameters_modification(analyzer_name, param_specs)
+  pre "args valid" do |ind_name, period_type, specs| ind_name.length > 0 &&
+    period_type.length > 0 && specs.length > 0 end
+  def request_analysis_parameters_modification(analyzer_name, period_type,
+                                               param_specs)
     request = constructed_message([ANALYSIS_PARAMETERS_SET_REQUEST,
-                                   session_key, analyzer_name, param_specs])
+                         session_key, analyzer_name, period_type, param_specs])
     execute_request(request)
   end
 
@@ -284,23 +285,27 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
 
   DATE_I = 0; TIME_I = 1; ID_I = 2; TYPE_I = 3
 
-  # Request that analysis be performed by the specified list of analyzers
-  # on the tradable specified by 'symbol' for the specified date/time range.
-  #type :in => [Array, String, Date (optional), Date (optional)]
+  # Request that analysis be performed by the specified list of analyzers,
+  # using the corresponding list of period-types, on the tradable specified
+  # by 'symbol' for the specified date/time range.
+  #type :in => [Array, Array, String, Date (optional), Date (optional)]
   pre :logged_in do logged_in end
-  pre :args_valid do |alist, sym, sdate| sym != nil and sym.length > 0 and
-    sdate != nil and (sdate.class == Date || sdate.class == DateTime) end
+  pre :args_valid do |alist, plist, sym, sdate| sym != nil && sym.length > 0 &&
+    sdate != nil && (sdate.class == Date || sdate.class == DateTime) end
   pre :analyzers_have_id do |analyzers| analyzers == nil ||
                         analyzers.all? {|a| a.respond_to?(:event_id)} end
-  post :analysis_data_exists do communication_failed ||
-                                  @analysis_data != nil end
-  def request_analysis(analyzers, symbol, start_date, end_date = nil)
+  pre :ana_ptypes_parallel do |as, pts| as.count == pts.count end
+  post :analysis_data_exists do
+    communication_failed || server_error || @analysis_data != nil end
+  def request_analysis(analyzers, ptypes, symbol, start_date, end_date = nil)
     if analyzers == nil then
       $log.warn('request_analysis called before request_analyzers')
       @analysis_data = []
     else
-      ids = analyzers.map do |analyzer|
-        analyzer.event_id
+      aspecs = []
+      # Load aspecs with analyzer-id/period-type pairs:
+      (0 .. analyzers.count - 1).each do |i|
+        aspecs << analyzers[i].event_id.to_s + ":" + ptypes[i]
       end
       sdate = sprintf "%04d%c%02d%c%02d", start_date.year,
         ANALYSIS_REQ_DATE_FIELD_SEPARATOR, start_date.month,
@@ -314,9 +319,9 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
       end
       dates = [sdate, edate]
       request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
-                                    dates + ids)
+                                    dates + aspecs)
       execute_request(request, method(:process_data_response))
-      if ! communication_failed then
+      if ! communication_failed && ! server_error then
         lines = list_from_response
         @analysis_data = lines.map do |line|
           record = line.split(MESSAGE_COMPONENT_SEPARATOR)

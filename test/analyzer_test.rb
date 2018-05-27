@@ -45,13 +45,17 @@ class AnalyzerTest < MiniTest::Test
     symbol = 'ibm'
     $client.request_analyzers(symbol, MasClient::DAILY)
     selected_analyzers = $client.analyzers[1..6]
+    period_types = selected_analyzers.map do |a|
+      DAILY_PERIOD_TYPE
+    end
     now = DateTime.now
     enddt = Date.new(now.year, now.month, now.day)
     startdt = enddt - 3650
     spec = PerTypeSpec.new(period_type: MasClient::DAILY,
                            start_date: enddt - 960, end_date: enddt)
     $client.set_period_type_spec(spec)
-    $client.request_analysis(selected_analyzers, symbol, spec.start_date)
+    $client.request_analysis(selected_analyzers, period_types, symbol,
+                             spec.start_date)
     events = $client.analysis_data
     if events.length > 1
       verbose_report "\n#{events.length} events:"
@@ -64,7 +68,8 @@ class AnalyzerTest < MiniTest::Test
         assert e.datetime != nil, 'valid datetime'
       end
     end
-    $client.request_analysis(selected_analyzers, symbol, startdt, enddt)
+    $client.request_analysis(selected_analyzers, period_types, symbol,
+                             startdt, enddt)
     events = $client.analysis_data
     if events.length > 1
       verbose_report "\nfirst and last (of #{events.length}) events:"

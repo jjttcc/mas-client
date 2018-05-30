@@ -24,6 +24,10 @@ class MACD_CrossoverBuyOracle
 
   def expected_count; @dates.count end
 
+  def parameter_settings
+    "1:5,2:13,3:5,4:13,5:6"
+  end
+
   def results_correct(data)
     result = true
     i=0
@@ -34,6 +38,27 @@ class MACD_CrossoverBuyOracle
       i += 1
     end
     result
+  end
+
+  # Are the expected results contained, in the right order, in 'data'?
+  def results_fuzzily_correct(data)
+    result = true
+    i=0; j = 0; hitcount = 0
+    while j < @dates.count do
+      while i < data.count do
+        if
+          data[i].analyzer.name == @event_name &&
+            data[i].event_type_id == @type_id &&
+            data[i].datetime == @dates[j]
+        then
+          hitcount += 1
+          break
+        end
+        i += 1
+      end
+      j += 1
+    end
+    result = hitcount == @dates.count
   end
 
   private

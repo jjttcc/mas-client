@@ -624,6 +624,33 @@ class ParameterTest < MiniTest::Test
     $client2.logout
   end
 
+  # Run analysis with 2 different period-types at the same time
+  def test_analysis_daily_and_weekly
+    symbol = 'ibm'
+    ptype1 = DAILY_PERIOD_TYPE
+    ptype2 = WEEKLY_PERIOD_TYPE
+    client = InitialSetup::new_client
+    param_settings1 = "2:5,3:13,1:7"
+    param_settings2 = "2:9,3:17,1:6"
+    client.request_analyzers(symbol)
+    analyzers = client.analyzers
+    assert analyzers.count > 0, 'some analyzers'
+    ana_name = 'Slope of MACD Signal Line Cross Above 0 (Buy)'
+    slope_macd_sl0_idx = 4
+    startdt = DateTime.new(2010, 01, 01)
+    enddt = DateTime.new(2015, 07, 01)
+    selected = [analyzers[slope_macd_sl0_idx], analyzers[slope_macd_sl0_idx]]
+    assert selected[0].name == ana_name, 'correct analyzer'
+    client.request_analysis_parameters_modification(ana_name, ptype1,
+                                                    param_settings1)
+    client.request_analysis_parameters_modification(ana_name, ptype2,
+                                                    param_settings2)
+    client.request_analysis(selected, [ptype1, ptype2], symbol, startdt, enddt)
+    data = client.analysis_data
+    assert data.count > 0, "data.count > 0 (#{data.count})"
+    client.logout
+  end
+
   def test_macd_xover_analysis
     failures = []
     ptype = DAILY_PERIOD_TYPE
@@ -631,7 +658,7 @@ class ParameterTest < MiniTest::Test
     oracle = MACD_CrossoverBuyOracle.new
     symbol = oracle.symbol
     expected_count = oracle.expected_count
-    param_settings = "1:5,2:13,3:5,4:13,5:6"
+    param_settings = oracle.parameter_settings
     $macd_xvr_client.request_analyzers(symbol)
     analyzers = $macd_xvr_client.analyzers
     assert analyzers.count > 2, 'analyzer count'
@@ -663,6 +690,46 @@ class ParameterTest < MiniTest::Test
     # (With different parameter settings, the results should be different:)
     assert ! oracle.results_correct(data), "data was unexpectedly correct"
     $macd_xvr_client.logout
+  end
+
+#!!!!to-do: Create a test to run macd-xover daily twice, the 2nd time
+#!!!! mixed with some other spec; use the oracle to make sure the
+#!!!! macd-xover results are correct (not "polluted" by the other spec).
+  def test_macd_xover_analysis_daily_and_weekly
+    failures = []
+    ptype1 = DAILY_PERIOD_TYPE
+    ptype2 = WEEKLY_PERIOD_TYPE
+    client = InitialSetup::new_client
+    oracle = MACD_CrossoverBuyOracle.new
+    symbol = oracle.symbol
+    expected_count = oracle.expected_count
+    # (expected daily count augmented by a low estimate of weekly count:)
+    augmented_count = expected_count + 5
+    param_settings = oracle.parameter_settings
+    client.request_analyzers(symbol)
+    analyzers = client.analyzers
+    start_date = oracle.start_date
+    end_date = oracle.end_date
+    our_analyzer = oracle.selected_analyzer(analyzers)
+    selected = [our_analyzer, our_analyzer]
+    client.request_analysis_parameters_modification(
+      selected[0].name, ptype1, param_settings)
+    client.request_analysis_parameters_modification(
+      selected[1].name, ptype2, param_settings)
+    if client.server_error then
+      msg = "#{client.last_error_msg}"
+      verbose_report msg
+      failures << msg
+    else
+      client.request_analysis(selected, [ptype1, ptype2], symbol,
+                              start_date, end_date)
+    end
+    assert failures.empty?, "parameter mod failures:\n" + failures.join("\n")
+    data = client.analysis_data
+    assert data.count > augmented_count,
+      "data-count (#{data.count}) should be > #{augmented_count}"
+    assert oracle.results_fuzzily_correct(data), "data was incorrect"
+    client.logout
   end
 
   # Test "MACD Crossover ..." buy AND sell together: ~(2*buy) signals
@@ -715,6 +782,56 @@ class ParameterTest < MiniTest::Test
     assert ! oracle.results_correct(data), "data was unexpectedly correct"
     assert data.count < approx_count,
       "data-count (#{data.count}) should be < #{approx_count}"
+    $macd_xvr_client.logout
+  end
+
+#!!!!TO-DO: Make similar test that uses "Volume > Yesterday's Volume EMA"
+#!!!! and 4 or 5 or so symbols (See ../../doc/bugreports.)
+  def test_macd_xover_analysis_with_2_symbols
+    failures = []
+    ptype = DAILY_PERIOD_TYPE
+    $macd_xvr_client = InitialSetup::new_client
+    oracle = MACD_CrossoverBuyOracle.new
+    symbol1 = oracle.symbol
+    symbol2 = 'aapl'
+    expected_s1_count = oracle.expected_count
+    param_settings = "1:5,2:13,3:5,4:13,5:6"
+    $macd_xvr_client.request_analyzers(symbol1)
+    analyzers = $macd_xvr_client.analyzers
+    start_date = oracle.start_date
+    end_date = oracle.end_date
+    selected = [oracle.selected_analyzer(analyzers)]
+    slope_macd_sl0_idx = 4
+    # Use a different analyzer to see if there's any "interference".
+    selected2 = [analyzers[slope_macd_sl0_idx]]
+    $macd_xvr_client.request_analysis_parameters_modification(
+      selected[0].name, ptype, param_settings)
+    if $macd_xvr_client.server_error then
+      msg = "#{$macd_xvr_client.last_error_msg}"
+      verbose_report msg
+      failures << msg
+    else
+      do_analysis(symbol1, [ptype], selected, start_date, end_date,
+                  $macd_xvr_client)
+    end
+    assert failures.empty?, "parameter mod failures:\n" + failures.join("\n")
+    data = $macd_xvr_client.analysis_data
+    assert data.count == expected_s1_count,
+      "data-count (#{data.count}) should be #{expected_s1_count}"
+    assert oracle.results_correct(data), "data was incorrect"
+    do_analysis(symbol2, [ptype], selected2, start_date, end_date,
+                  $macd_xvr_client)
+    data = $macd_xvr_client.analysis_data
+    assert ! oracle.results_correct(data),
+      "data for #{symbol1} unexpectedly matched that of #{symbol2}" +
+      "(oracle count, symbol2-count: #{expected_s1_count}, #{data.count}"
+    # Do symbol1 again:
+    do_analysis(symbol1, [ptype], selected, start_date, end_date,
+                  $macd_xvr_client)
+    data = $macd_xvr_client.analysis_data
+    assert data.count == expected_s1_count,
+      "data-count (#{data.count}) should be #{expected_s1_count}"
+    assert oracle.results_correct(data), "data was incorrect"
     $macd_xvr_client.logout
   end
 

@@ -110,8 +110,11 @@ module TestSetup
       testpath = File::dirname($0)
       source_env_from(testpath + '/.env')
       if ! ENV["MC_NO_SERVER_START"] then
-        mas_script = testpath + '/startmas'
-        if ! system mas_script; then exit 222 end
+        mas_script = testpath + '/../bin/startmas'
+        if ! system mas_script; then
+          $stderr.puts "MAS start script (#{mas_script}) failed"
+          exit 222
+        end
       else
         $stderr.puts "Skipping auto-starting mas server"
       end

@@ -19,20 +19,22 @@ start_mas_server() {
     $exe -b -f , $p *.txt&
 }
 
-if [ -z "$TATDEV" ]; then
-    echo "Error: TATDEV env. var. not set" >&2
+if [ -z "$TATDEV" -a -z "$MAS_RUNDIR" ]; then
+    echo "Error: TATDEV and MAS_RUNDIR env. vars. not set" >&2
     exit 42
 fi
-cd $TATDEV/library/test/masdev || {
-    echo "Could not cd to MAS dev/run directory - aborting ..." >&2
+if [ -z "$MAS_RUNDIR" ]; then
+    MAS_RUNDIR=$TATDEV/library/test/masdev
+fi
+
+cd $MAS_RUNDIR || {
+    echo "Could not cd to $MAS_RUNDIR - aborting ..." >&2
     exit 43
 }
-script_path=$(dirname $0)
 pgrep_opts='-laf'
 if lsb_release -a 2>/dev/null|egrep -qi 'ubuntu'; then
     pgrep_opts='-lf'
 fi
-cd $script_path >/dev/null
 ports=$(for p in 5441 5442 5443 5444; do echo $p;done|sort -u)
 exe=mas
 if [ $# -gt 0 ]; then

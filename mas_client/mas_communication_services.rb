@@ -99,7 +99,6 @@ module MasCommunicationServices
       $log.warn("'logout' from server failed with error: #{e}")
     end
     finish_logout
-$log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
     @session_key = nil
   end
 
@@ -225,6 +224,7 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
   pre "logged in" do logged_in end
   pre "args valid" do |ana_name, period_type| ana_name.length > 0 &&
     period_type.length > 0 end
+  post :result_set do analysis_parameters != nil end
   type @analysis_parameters => Array
   def request_analysis_parameters(analyzer_name, period_type)
     request = constructed_message([ANALYSIS_PARAMETERS_REQUEST, session_key,
@@ -247,6 +247,8 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
                                                param_specs)
     request = constructed_message([ANALYSIS_PARAMETERS_SET_REQUEST,
                          session_key, analyzer_name, period_type, param_specs])
+    $log.debug("[request_analysis_parameters_modification] " +
+               "requesting: #{request}")
     execute_request(request)
   end
 
@@ -256,7 +258,7 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
   pre :symbol_valid do |symbol| symbol != nil and symbol.length > 0 end
   post :analyzers_set do communication_failed ||
                          analyzers != nil && analyzers.class == [].class end
-  post :analyzers_have_id_name do communication_failed ||
+  post :analyzers_have_event_id_and_name do communication_failed ||
     @analyzers.all? {|a| a.respond_to?(:event_id) && a.respond_to?(:name)} end
   type @analyzers => Array
   def request_analyzers(symbol, period_type = DAILY)
@@ -272,11 +274,16 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
         lines = list_from_response
         @analyzers = []
         if lines.length > 0 then
-          @analyzers = lines.map do |line|
+          lines.each do |line|
+            ana = nil
             parts = line.split(MESSAGE_COMPONENT_SEPARATOR)
-            tradable_factory.new_analyzer(id: parts[id_index],
-                                          name: parts[name_index],
-                                          period_type: period_type)
+            if parts.count > 1 then
+              ana = tradable_factory.new_analyzer(id: parts[id_index],
+                      name: parts[name_index], period_type: period_type)
+            end
+            if ! ana.nil? then
+              @analyzers << ana
+            end
           end
         end
       end
@@ -287,19 +294,21 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
 
   # Request that analysis be performed by the specified list of analyzers,
   # using the corresponding list of period-types, on the tradable specified
-  # by 'symbol' for the specified date/time range.
+  # by 'symbol' for the specified date/time range - end_date == nil is
+  # interpreted as "now".
   #type :in => [Array, Array, String, Date (optional), Date (optional)]
   pre :logged_in do logged_in end
   pre :args_valid do |alist, plist, sym, sdate| sym != nil && sym.length > 0 &&
-    sdate != nil && (sdate.class == Date || sdate.class == DateTime) end
+    sdate != nil end
   pre :analyzers_have_id do |analyzers| analyzers == nil ||
                         analyzers.all? {|a| a.respond_to?(:event_id)} end
   pre :ana_ptypes_parallel do |as, pts| as.count == pts.count end
   post :analysis_data_exists do
-    communication_failed || server_error || @analysis_data != nil end
+    communication_failed || server_error || analysis_data != nil end
+  post :empty_if_empty do |analyzers|
+    implies(analyzers == nil || analyzers.empty?, analysis_data.empty?) end
   def request_analysis(analyzers, ptypes, symbol, start_date, end_date = nil)
-    if analyzers == nil then
-      $log.warn('request_analysis called before request_analyzers')
+    if analyzers == nil || analyzers.empty? then
       @analysis_data = []
     else
       aspecs = []
@@ -320,6 +329,7 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
       dates = [sdate, edate]
       request = constructed_message([EVENT_DATA_REQUEST, session_key, symbol] +
                                     dates + aspecs)
+      $log.debug("[request_analysis] " + "requesting: #{request}")
       execute_request(request, method(:process_data_response))
       if ! communication_failed && ! server_error then
         lines = list_from_response
@@ -535,7 +545,7 @@ $log.debug("logout called>>> [stack:\n#{caller.join("\n")}\n]")
     if mas_session then
       @session_key = mas_session.mas_session_key.to_s
     end
-$log.debug("[initialize] MAS_SESSION:\n#{mas_session.inspect}")
+    $log.debug("[initialize] MAS_SESSION:\n#{mas_session.inspect}")
     init_ptype_specs(args['period.*type'])
     initialize_communication(args[:host], args[:port], args[:close_after_w])
     if args[:timeout] then initialize_timeout(args[:timeout]) end
@@ -544,22 +554,26 @@ $log.debug("[initialize] MAS_SESSION:\n#{mas_session.inspect}")
       execute_request(initial_message)
       if ! communication_failed then
         @session_key = key_from_response
-$log.debug("<<<logged in with NEW key: #{@session_key}>>>")
+        $log.debug("[initialize] logged in with NEW key: #{@session_key}")
       else
-$log.debug("<<<I'm afraid I can't let you do that, Dave.>>>")
+        $log.debug("[initialize] communication with MAS server failed.")
       end
-else
-$log.debug("<<<NO login NEEDED - key is: #{@session_key}>>>")
+    else
+      $log.debug("[initialize] No login needed - key is: #{@session_key}")
     end
-$log.debug("<<<login to MAS - succeeded?: " + (! communication_failed).to_s +
-           " [stack:\n#{caller.join("\n")}\n]")
+    $log.debug("[initialize] login to MAS - succeeded?: " +
+               (! communication_failed).to_s)
+    if communication_failed then
+      $log.debug("[stack:\n#{caller.join("\n")}\n]")
+    end
   end
 
   # Execute the specified 'request' to the server and call process_response
   # with the server's response (in 'last_response').  Check if the server
-  # returned OK status, and, if not, !!!fix:raise an appropriate exception.  If
-  # 'processor' is not nil, it will be called to process the server's
-  # response; otherwise, process_response will be called.
+  # returned OK status, and, if not, set @last_server_error with an error
+  # message that includes the last response status.
+  # If 'processor' is not nil, it will be called to process the server's
+  # response; otherwise, 'process_response' will be called.
   pre :request_valid do |request| request != nil and request.length > 0 end
   post :last_resp_comp_exists do implies(! communication_failed,
                             last_response_components != nil) end

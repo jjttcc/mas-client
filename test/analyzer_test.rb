@@ -16,21 +16,30 @@ class AnalyzerTest < MiniTest::Test
   end
 
   def test_analyzer_list
-    [MasClient::HOURLY, MasClient::DAILY, MasClient::MONTHLY].each do |pt|
+    hourly, daily, monthly =
+      MasClient::HOURLY, MasClient::DAILY, MasClient::MONTHLY
+    [hourly, daily, monthly].each do |pt|
       begin
         $client.request_analyzers("ibm", pt)
         if $client.communication_failed then
           $log.warn("request_analyzers failed for #{pt} " +
                     "(\n#{$client.last_exception})")
+          assert false, 'request (to MAS server) of analyzers failed'
         else
           analyzers = $client.analyzers
           assert analyzers.class == [].class, "analyzers is an array"
-          if analyzers.length == 0
-            puts "<<<<<No analyzers found>>>>>"
+          if $client.server_error then
+            if pt == hourly then
+              puts "ERROR for hourly data (expected):\n#{$client.last_error_msg}"
+            else
+              assert false, "unexpected server error for #{pt} data"
+            end
           else
+            assert analyzers.count > 1, 'At least two analyzers'
             verbose_report "<<<<<There were #{analyzers.length} analyzers>>>>>"
             analyzers.each do |a|
-              assert_kind_of TradableAnalyzer, a
+              assert a.respond_to?(:event_id) && a.respond_to?(:name),
+                '"analyzer" object must respond to "event_id" and "name"'
               if InitialSetup::verbose then puts a.inspect end
             end
           end
@@ -53,7 +62,6 @@ class AnalyzerTest < MiniTest::Test
     startdt = enddt - 3650
     spec = PerTypeSpec.new(period_type: MasClient::DAILY,
                            start_date: enddt - 960, end_date: enddt)
-    $client.set_period_type_spec(spec)
     $client.request_analysis(selected_analyzers, period_types, symbol,
                              spec.start_date)
     events = $client.analysis_data

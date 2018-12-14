@@ -19,24 +19,22 @@ module TradableEventInterface
   public ### Abstract methods
 
   # The associated TradableAnalyzer
-  post :analyzer_exists do |result| result != nil end
   def analyzer
-    raise "abstract method"
+    raise "abstract method: analyzer"
   end
 
   # The date and time that the underlying event occurred (e.g., if the
   # event consists of one moving average line crossing another moving
   # average line, the date/time [based on the underlying associated
   # stock/derivitave data record] associated with this crossover event)
-  type out: DateTime
   def datetime
-    raise "abstract method"
+    raise "abstract method: datetime"
   end
 
   type out: String
   post :id_valid do |result| TYPE_TABLE.has_key?(result) end
   def event_type_id
-    raise "abstract method"
+    raise "abstract method: event_type_id"
   end
 
   public ### Access
@@ -47,8 +45,11 @@ module TradableEventInterface
   end
 
   def to_s
-    result = "date: #{datetime.to_s}\n" + "event name: #{analyzer.name}, " +
-      "event type: #{event_type}"
+    result = "date: #{datetime.to_s}"
+    if ! analyzer.nil? then
+      result += ", event name: #{analyzer.name}"
+    end
+    result += ", event type: #{event_type}"
     result
   end
 

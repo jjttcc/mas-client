@@ -13,7 +13,7 @@ module TradableEventInterface
     'b' => 'Buy',
     's' => 'Sell',
     'n' => 'Nuetral (Buy-or-Sell)',
-    'o' => 'Other (User-defined)',
+    'o' => 'Other (user-defined)',
   }
 
   public ### Abstract methods

@@ -556,7 +556,8 @@ module MasCommunicationServices
         @session_key = key_from_response
         $log.debug("[initialize] logged in with NEW key: #{@session_key}")
       else
-        $log.debug("[initialize] communication with MAS server failed.")
+        $log.debug("[initialize] communication with MAS server failed. " +
+                  "reason: #{self.last_error_msg}")
       end
     else
       $log.debug("[initialize] No login needed - key is: #{@session_key}")

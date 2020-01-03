@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+
+def config_paths
+  dirs = %w(client_library/support client_server/ma_server_protocols
+    client_server/shared_protocols clients/macl/root clients/macl/support
+    eiffel_library/architectural eiffel_library/debug eiffel_library/server
+    eiffel_library/support
+  )
+
+  base_path = "#{File.dirname($0)}/../../.."
+  dirs.each do |d|
+    $LOAD_PATH << "#{base_path}/#{d}"
+  end
+end
+
+config_paths
+
+require 'macl.rb'
+require 'object_extension'
+
+puts 'A'
+macl_path = "$base_path/$macl_root"
+#ruby "$macl_path" $@
+puts 'B'
+m = Macl.new
+puts 'C'
+puts m
+p m

@@ -1,46 +1,36 @@
+
 # Facilities for timing execution";
 class Timer
 
-creation
+  private
 
-  make
-
-private
-
-  make
-      # Initialize and start the timer.
-    do
-      create start_time.make_now
-    end
+  # Initialize and start the timer.
+  def initialize
+    @start_time = Time.now
+  end
 
   public
 
   ##### Access
 
-  start_time: DATE_TIME
-      # Time when `start' was called
+  # Time when `start' was called
+  attr_reader :start_time
 
-  current_time: DATE_TIME
-      # The current time
-    do
-      create Result.make_now
-    end
+  # The current time
+  def current_time
+    Time.now
+  end
 
-  elapsed_time: DATE_TIME_DURATION
-      # Amount of time that has elapsed since `start' was called.
-    do
-      Result := current_time.duration - start_time.duration
-      # DATE_TIME_DURATION requires origin to be set.
-      Result.set_origin_date_time (
-        create {DATE_TIME}.make_by_date (create {DATE}.make (1, 1, 1)))
-    end
+  # Number of seconds that has elapsed since `start' was called.
+  def elapsed_time
+    result = current_time.to_i - start_time.to_i
+  end
 
-##### Basic operations
+  ##### Basic operations
 
-  start
-      # Start the timer.
-    do
-      start_time.make_now
-    end
+  # Start the timer.
+  def start
+    @start_time = Time.now
+  end
 
 end

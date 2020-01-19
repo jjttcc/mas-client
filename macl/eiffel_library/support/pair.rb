@@ -1,90 +1,74 @@
 # Pairs of objects
-class Pair [g, H]
+class Pair
 
-inherit
+  private
 
-  ANY
-    redefine
-      out
-    end
+  ##### Initialization
 
-creation
-
-  make
-
-private
-
-##### Initialization
-
-  make (l: G; r: H)
-    do
-      first := l
-      second := r
-    ensure
-      set: first = l and second = r
-    end
+  post :set do self.first == l and self.second == r end
+  def initialize(l, r)
+    @first = l
+    @second = r
+  end
 
   public
 
   ##### Access
 
-  first: G
-      # First element of the pair
+  # First element of the pair
+  attr_reader :first
 
-  second: H
-      # Second element of the pair
+  # Second element of the pair
+  attr_reader :second
 
-  left: G
-      # Left element of the pair - synonym for `first'
-    do
-      Result := first
+  # Left element of the pair - synonym for `first'
+  def left
+    self.first
+  end
+
+  # Right element of the pair - synonym for `second'
+  def right
+    self.second
+  end
+
+  # Printable representation
+  def to_s
+    f, s = "", ""
+    if first.nil? then
+      f = "-void-"
+    else
+      f = first.to_s
     end
-
-  right: H
-      # Right element of the pair - synonym for `second'
-    do
-      Result := second
+    if second.nil? then
+      s = "-void-"
+    else
+      s = second.to_s
     end
-
-  out: STRING
-      # Printable representation
-    local
-      f, s: STRING
-    do
-      if first = Void then
-        f := "-void-"
-      else
-        f := first.out
-      end
-      if second = Void then
-        s := "-void-"
-      else
-        s := second.out
-      end
-      Result := "(" + f + ", " + s + ")"
-    end
+    result = "(" + f + ", " + s + ")"
+  end
 
 ##### Element change
 
-  set_first, set_left (arg: G)
-      # Set `first' (`left') to `arg'.
-    do
-      first := arg
-    ensure
-      first_set: first = arg
-    end
+  alias_method :set_first, :set_left
+  alias_method :set_second, :set_right
 
-  set_second, set_right (arg: H)
-      # Set `second' (`right') to `arg'.
-    do
-      second := arg
-    ensure
-      second_set: second = arg
-    end
+  # Set `first' (`left') to `arg'.
+  post :first_set do first == arg end
+  def set_left(arg)
+    @first = arg
+  end
 
-invariant
+  # Set `second' (`right') to `arg'.
+  post :second_set do second == arg end
+  def set_right(arg)
+    @second = arg
+  end
 
-  left_is_synonym_for_first: left = first
-  right_is_synonym_for_second: right = second
+  def invariant
+    # left_is_synonym_for_first:
+    left == first
+    # right_is_synonym_for_second:
+    right == second
+  end
 
-end -- class PAIR
+end

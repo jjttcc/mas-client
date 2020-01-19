@@ -1,58 +1,41 @@
+require 'general_utilities'
+
 # Global services for cleanup registration and execution
-class CleanupServices <
-
-  EXCEPTIONS
-    export
-      {NONE} all
-      {ANY} deep_twin, is_deep_equal, standard_is_equal
-    end
-
-  GeneralUtilities
-    export
-      {NONE} all
-    end
+class CleanupServices
+  protected
+  include Contracts::DSL, GeneralUtilities
 
   public
 
   ##### Utility
 
-  register_for_termination (v: TERMINABLE)
-      # Add `v' to termination_registrants.
-    require
-      not_registered: not termination_registrants.has (v)
-    do
-      termination_registrants.extend (v)
+  # Add `v' to @@termination_registrants.
+  pre  :not_registered do |v| ! @@termination_registrants.include?(v) end
+  post :registered do |v| @@termination_registrants.include?(v) end
+  def register_for_termination(v)
+    if v != nil then
+      @@termination_registrants << v
     end
+  end
 
-  unregister_for_termination (v: TERMINABLE)
-      # Remove (all occurrences of) `v' from termination_registrants.
-    do
-      termination_registrants.prune_all (v)
-    ensure
-      not_registered: not termination_registrants.has (v)
+  # Remove (all occurrences of) `v' from @@termination_registrants.
+  post :not_registered do ! @@termination_registrants.include?(v) end
+  def unregister_for_termination(v: TERMINABLE)
+    @@termination_registrants.reject! {|e| e == v}
+  end
+
+  # Send cleanup notification to all members of
+  # `@@termination_registrants' in the order they were added
+  # (with `register_for_termination').
+  def termination_cleanup
+    @@termination_registrants.each do |r|
+      r.cleanup
     end
+  end
 
-  termination_cleanup
-      # Send cleanup notification to all members of
-      # `termination_registrants' in the order they were added
-      # (with `register_for_termination').
-    do
-      from
-        termination_registrants.start
-      until
-        termination_registrants.exhausted
-      loop
-        termination_registrants.item.cleanup
-        termination_registrants.forth
-      end
-    end
+  ##### Access
 
-##### Access
-
-  termination_registrants: LIST [TERMINABLE]
-      # Registrants for termination cleanup notification
-    once
-      create {LINKED_LIST [TERMINABLE]} Result.make
-    end
+  # Registrants for termination cleanup notification
+  @@termination_registrants = []
 
 end

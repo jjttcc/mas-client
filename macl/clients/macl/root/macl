@@ -18,11 +18,4 @@ config_paths
 require 'macl.rb'
 require 'object_extension'
 
-puts 'A'
-macl_path = "$base_path/$macl_root"
-#ruby "$macl_path" $@
-puts 'B'
 m = Macl.new
-puts 'C'
-puts m
-p m

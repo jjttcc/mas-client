@@ -17,22 +17,15 @@ class CommandLine
   ##### Initialization
 
   def initialize
-puts "i"
+me = "#{self.class}.#{__method__}"
     @error_description = ""
     @contents = ARGV.dup
-puts "ii - errocc: #{error_occurred}"
     prepare_for_argument_processing
-puts "iii - errocc: #{error_occurred}"
     check_for_ambiguous_options
-puts "iv - errocc: #{error_occurred}"
     process_arguments(initial_setup_procedures)
-puts "v - errocc: #{error_occurred}"
     process_arguments(main_setup_procedures)
-puts "vi - errocc: #{error_occurred}"
     finish_argument_processing
-puts "vii - errocc: #{error_occurred}"
     check_for_invalid_flags
-puts "viii - errocc: #{error_occurred}"
   end
 
   public
@@ -80,13 +73,8 @@ puts "viii - errocc: #{error_occurred}"
     flags = remaining_flags
     if not flags.empty? then
       @error_occurred = true
-      flags.start
-      @error_description += "Invalid option: " + flags.item + "\n"
-#     from
-        flags.forth
-      while ! flags.exhausted do
-        @error_description += "Invalid option: " + flags.item + "\n"
-        flags.forth
+      flags.each do |f|
+        @error_description += "Invalid option: " + f + "\n"
       end
     end
   end
@@ -96,54 +84,27 @@ puts "viii - errocc: #{error_occurred}"
   ##### Implementation - argument processing
 
   def process_arguments(setup_procedures)
-    # Continue running setup_procedures.item until no more
+    # Continue running each member of setup_procedures until no more
     # arguments for that procedure are found.
     setup_procedures.each do |p|
-puts "#{__method__} - p: #{p}, errocc: #{self.error_occurred}, laf: #{@last_argument_found}"
       @last_argument_found = false
+      debug "#{__method__} calling #{p}"
       p.call()
-puts "#{__method__} - a, errocc: #{self.error_occurred}, laf: #{@last_argument_found}"
-      until ! last_argument_found do
-puts "#{__method__} - b, errocc: #{self.error_occurred}, laf: #{@last_argument_found}"
+      until ! @last_argument_found || contents.empty? do
         @last_argument_found = false
         p.call()
       end
-puts "#{__method__} - c, errocc: #{self.error_occurred}, laf: #{@last_argument_found}"
-    end
-puts "#{__method__} - d, errocc: #{self.error_occurred}, laf: #{@last_argument_found}"
-  end
-
-=begin
-#!!!!old:
-  process_arguments (setup_procedures: LINEAR [PROCEDURE [ANY, TUPLE []]])
-    do
-      from
-        setup_procedures.start
-      until
-        setup_procedures.exhausted
-      loop
-        # Continue running setup_procedures.item until no more
-        # arguments for that procedure are found.
-        from
-          @last_argument_found = false
-          setup_procedures.item.call ([])
-        until
-          not last_argument_found
-        loop
-          @last_argument_found = false
-          setup_procedures.item.call ([])
-        end
-        setup_procedures.forth
+      if contents.empty? then
+        break   # No more arguments to process/parse.
       end
     end
-=end
+  end
 
   # Setup procedures used to process arguments
   # (LINEAR [PROCEDURE [ANY, TUPLE []]])
   def initial_setup_procedures
     # a: ARRAY [PROCEDURE [ANY, TUPLE []]]
     a = [self.method(:set_help), self.method(:set_version_request)]
-##!!!!      result = a.linear_representation
     result = a
   end
 
@@ -189,22 +150,21 @@ puts "#{__method__} - d, errocc: #{self.error_occurred}, laf: #{@last_argument_f
 
   attr_reader :contents   # LINKED_LIST [STRING]
 
-  def help_character
-    'h'
+  def help_string
+    deferred
   end
 
   Question_mark = '?'
 
   def set_help
-#!!!!Check this call - it's likely broken:!!!!!
-    index = option_in_contents(help_character)
+    index = option_in_contents(help_string)
     if index >= 0 then
       @help = true
       @last_argument_found = true
       contents.delete_at(index)
     else
-      if help_character != Question_mark then
-        index = option_in_contents(Question_mark)
+      if help_string != Question_mark then
+        index = option_in_contents("\\" + Question_mark)
       end
       if index >= 0 then
         @help = true
@@ -214,13 +174,17 @@ puts "#{__method__} - d, errocc: #{self.error_occurred}, laf: #{@last_argument_f
     end
   end
 
+#!!!!!NOTE: This is being called and appears to work, but the
+#!!!!!version request is being ignored - i.e., fix it!!!!!
   def set_version_request
     index = option_in_contents('v')
+    debug "#{__method__} - index: #{index}"
     if index >= 0 then
       @version_request = true
       @last_argument_found = true
       contents.delete_at(index)
     end
+    debug "#{__method__} - version_request: #{version_request}"
   end
 
   def set_debug
@@ -255,98 +219,31 @@ puts "#{__method__} - d, errocc: #{self.error_occurred}, laf: #{@last_argument_f
   def option_in_contents(o)
     result = -1
     (0 .. contents.count - 1).each do |i|
-      if contents[i] =~ /^--?#{o}/ then
+      if contents[i] =~ /^--?#{o}/i then
         result = i
         break
+      end
+    end
+    debug do
+      if result > -1 then
+        "#{__method__} - FOUND IT: #{result}, #{contents[result]}"
       end
     end
     result
   end
 
-  ###!!!!![experiment!!!!!]!!!!!!!###
+  ###!!!!![check whether this works!!!!!]!!!!!!!###
   alias_method :option_string_in_contents, :option_in_contents
 
-=begin
-#!!!!old:
-  option_in_contents (c: CHARACTER): BOOLEAN
-    do
-      from
-        contents.start
-      until
-        contents.exhausted or Result
-      loop
-        if
-          (contents.item.count >= 2 and
-            contents.item.item(1).is_equal(option_sign) and
-            contents.item.item(2).is_equal(o)) or
-            # Allow GNU "--opt" type options:
-          (contents.item.count >= 3 and
-            contents.item.item(1).is_equal(option_sign) and
-            contents.item.item(2).is_equal(option_sign) and
-            contents.item.item(3).is_equal(o))
-        then
-          Result := true
-        else
-          contents.forth
-        end
-      end
-    ensure
-      cursor_set_if_true: Result = (not contents.exhausted and then
-        ((contents.item.item(1).is_equal(option_sign) and
-          contents.item.item(2).is_equal(o)) or
-        (contents.item.item(1).is_equal(option_sign) and
-          contents.item.item(2).is_equal(option_sign) and
-          contents.item.item(3).is_equal(o))))
-      exhausted_if_false: not Result = contents.exhausted
-    end
-=end
-
-=begin
-  option_string_in_contents (s: STRING): BOOLEAN
-      # Is option `c' in `contents'?
-    local
-      scount: INTEGER
-    do
-      from
-        scount := s.count
-        contents.start
-      until
-        contents.exhausted or Result
-      loop
-        if
-          (contents.item.count >= scount + 1 and
-          contents.item.item (1) = option_sign and
-          contents.item.substring (2, scount + 1).is_equal (s)) or
-            # Allow GNU "--opt" type options:
-          (contents.item.count >= scount + 2 and
-          contents.item.item (1) = option_sign and
-          contents.item.item (2) = option_sign and
-          contents.item.substring (3, scount + 2).is_equal (s))
-        then
-          Result := true
-        else
-          contents.forth
-        end
-      end
-    ensure
-      Result implies (contents.item.item (1) = option_sign and
-        contents.item.substring (2, s.count + 1).is_equal (s)) or
-        (contents.item.item (1) = option_sign and
-        contents.item.item (2) = option_sign and
-        contents.item.substring (3, s.count + 2).is_equal (s))
-    end
-
-  one_character_option (c: CHARACTER): BOOLEAN
-      # Does `c' occur in `contents' as a one-character option
-      # (e.g., "-x")?
-    do
-      Result := option_in_contents (c)
-      if Result then
-        Result := contents.item.is_equal ("-" + c.out) or
-          contents.item.is_equal ("--" + c.out)
+  # Does `c' occur in `contents' as a one-character option
+  # (e.g., "-x")?
+  def one_character_option(c: CHARACTER)
+      index = option_in_contents(c)
+      if index >= 0 then
+        result = contents[index] == "-#{c.to_s}" ||
+          contents[index] == "--#{c.to_s}"
       end
     end
-=end
 
   # Check for ambiguous options
   def check_for_ambiguous_options
@@ -370,29 +267,6 @@ puts "#{__method__} - d, errocc: #{self.error_occurred}, laf: #{@last_argument_f
       end
     end
   end
-
-=begin
-#!!!!orig:
-  remaining_flags: LINKED_LIST [STRING]
-      # Arguments remaining in `contents' that begin with '-' -
-      # Intended to be used to find invalid arguments after the valid
-      # arguments have been processed and removed from `contents'.
-    do
-      from
-        create Result.make
-        contents.start
-      until
-        contents.exhausted
-      loop
-        if contents.item @ 1 = '-' then
-          Result.extend (contents.item)
-        end
-        contents.forth
-      end
-    ensure
-      result_exists: Result /= Void
-    end
-=end
 
 ##### Implementation - Constants
 

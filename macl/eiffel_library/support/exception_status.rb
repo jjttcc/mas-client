@@ -1,55 +1,49 @@
+require 'ruby_contracts'
+
 # Extra exception status information (in addition to
 # what is available in class EXCEPTIONS)
 class ExceptionStatus
+  include Contracts::DSL
 
-creation
+  private
 
-  make
+  ##### Initialization
 
-private
+  def initialize
+    @description = ""
+    check(invariant)
+  end
 
-##### Initialization
+  public
 
-  make
-    do
-      create description.make (0)
-    end
+  ##### Access
 
-public
+  # Description of the cause of the exception
+  attr_reader :description
 
-##### Access
+  ##### Status report
 
-  description: STRING
-      # Description of the cause of the exception
+  # Is the error condition that caused the exception considered fatal?
+  attr_reader :fatal
 
-##### Status report
+  ##### Status setting
 
-  fatal: BOOLEAN
-      # Is the error condition that caused the exception considered
-      # fatal?
+  # Set fatal to `arg'.
+  post :fatal_set do |result, arg| fatal == arg end
+  def set_fatal(arg)
+    @fatal = arg
+  end
 
-##### Status setting
+  # Set description to `arg'.
+  pre  :arg_good do |arg| arg != nil end
+  post :description_set do |res, arg|
+    description == arg && description != nil end
+  def set_description (arg)
+    @description = arg
+  end
 
-  set_fatal (arg: BOOLEAN)
-      # Set fatal to `arg'.
-    do
-      fatal := arg
-    ensure
-      fatal_set: fatal = arg
-    end
-
-  set_description (arg: STRING)
-      # Set description to `arg'.
-    require
-      arg_not_void: arg /= Void
-    do
-      description := arg
-    ensure
-      description_set: description = arg and description /= Void
-    end
-
-invariant
-
-  description_not_void: description /= Void
+  def invariant
+    description != nil
+  end
 
 end

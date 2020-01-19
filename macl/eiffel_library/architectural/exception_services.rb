@@ -1,6 +1,10 @@
+require 'ruby_contracts'
+require 'exception_status'
+
 # Facilities for exception handling and program termination -
 # intended to be used via inheritance
-class ExceptionServices
+module ExceptionServices
+  include Contracts::DSL
 
 =begin
   EXCEPTIONS
@@ -18,8 +22,8 @@ class ExceptionServices
     end
 =end
 
-  CleanupServices
 =begin
+  CleanupServices
     export
       {NONE} all
     end
@@ -47,30 +51,25 @@ class ExceptionServices
 
   ##### Status report
 
-  verbose_reporting: BOOLEAN
-      # Should `error_information' include detailed
-      # exception information?  (Defaults to true.)
-    do
-      result = not not_verbose_reporting
-    end
+  # Should `error_information' include detailed exception information?
+  # (Defaults to true.)
+  def verbose_reporting
+    result = ! not_verbose_reporting
+  end
 
-##### Status setting
+  ##### Status setting
 
-  set_verbose_reporting_on
-      # Set `verbose_reporting' to true.
-    do
-      not_verbose_reporting := false
-    ensure
-      verbose: verbose_reporting
-    end
+  # Set `verbose_reporting' to true.
+  post :verbose do verbose_reporting end
+  def set_verbose_reporting_on
+    self.not_verbose_reporting = false
+  end
 
-  set_verbose_reporting_off
-      # Set `verbose_reporting' to false.
-    do
-      not_verbose_reporting := true
-    ensure
-      not_verbose: not verbose_reporting
-    end
+  # Set `verbose_reporting' to false.
+  post :not_verbose do ! verbose_reporting end
+  def set_verbose_reporting_off
+    self.not_verbose_reporting = true
+  end
 
 ##### Basic operations
 
@@ -135,7 +134,7 @@ class ExceptionServices
             application_name + ".%N")
         end
       end
-      if not no_cleanup then
+      if ! no_cleanup then
         debug ("persist")
           log_information ("Cleaning up ...%N")
         end
@@ -163,7 +162,7 @@ class ExceptionServices
   fatal_exception (e: INTEGER): BOOLEAN
       # Is `e' an exception that is considered fatal?
     do
-      result = exception_list.has (e) and not (e = External_exception
+      result = exception_list.has (e) and ! (e = External_exception
         or e = Floating_point_exception or e = Routine_failure or
         e = Io_exception)
     end
@@ -207,14 +206,14 @@ class ExceptionServices
           end
           if
             tag_name /= Void and original_tag_name /= Void and
-            not tag_name.is_equal (original_tag_name)
+            ! tag_name.is_equal (original_tag_name)
           then
             result = result + "(Original tag name: " +
               original_tag_name + ".)%N"
           end
           if
             class_name /= Void and original_class_name /= Void and
-            not class_name.is_equal (original_class_name)
+            ! class_name.is_equal (original_class_name)
           then
             result = result + "(Original class name: " +
               original_class_name + ".)%N"
@@ -225,7 +224,7 @@ class ExceptionServices
           end
         end
       end
-      if not last_exception_status.description.is_empty then
+      if ! last_exception_status.description.is_empty then
         if
           result != nil && ! result.empty? &&
           exception_list.has(exception)
@@ -274,7 +273,7 @@ class ExceptionServices
       if tag_name /= Void then
         tgname := tag_name
       end
-      if not tgname.is_empty then
+      if ! tgname.is_empty then
         result = ":%N%"" + tgname + "%"%N"
       else
         result = ""
@@ -304,7 +303,7 @@ class ExceptionServices
       if verbose_reporting then
         result = meaning (exception)
         if result != nil && ! result.empty? then
-          if errname /= Void and not errname.is_empty then
+          if errname /= Void and ! errname.is_empty then
             result = "Type of " + errname + ": " + result
           else
             result = "(" + result + ")"

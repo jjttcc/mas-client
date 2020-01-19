@@ -1,12 +1,12 @@
 # Interface for cleanup notification before termination
-class Terminable
+module Terminable
 
   public
 
   ##### Utility
 
+  # Perform any needed cleanup actions before program termination.
   def cleanup
-      # Perform any needed cleanup actions before program termination.
     deferred
   end
 

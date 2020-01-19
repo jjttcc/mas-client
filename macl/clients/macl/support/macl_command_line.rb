@@ -6,7 +6,7 @@ require 'general_utilities'
 class MaclCommandLine < CommandLine
 =begin
     redefine
-      help_character, ambiguous_characters, debug_string
+      help_string, ambiguous_characters, debug_string
     end
 =end
 
@@ -100,62 +100,38 @@ class MaclCommandLine < CommandLine
 
 ##### Implementation
 
-  def help_character
-    'H'
+  def help_string
+    'help'
   end
 
   # Set `host_name' and remove its settings from `contents'.
   def set_host_name
     index = option_in_contents('h')
     if index >= 0 then
-      if contents[index].count > 2 then
+      if contents[index].length > 2 then
         @host_name = contents[index][2..-1]
+        # Delete the host-name setting from (CL argument) contents:
         contents.delete_at(index)
         @last_argument_found = true
       else
+        # Delete the '-h' from (CL argument) contents:
+        contents.delete_at(index)
         @last_argument_found = true
         @host_name = contents[index]
+        # Delete the host-name setting from (CL argument) contents:
         contents.delete_at(index)
       end
-    else
+    elsif self.host_name.nil? then
       @error_occurred = true
       log_errors([Hostname_error])
     end
   end
 
-=begin
-#!!!!!old:
-  set_host_name
-      -- Set `host_name' and remove its settings from `contents'.
-    do
-      if option_in_contents ('h') then
-        if contents.item.count > 2 then
-          create host_name.make (contents.item.count - 2)
-          host_name.append (contents.item.substring (
-            3, contents.item.count))
-          contents.remove
-          last_argument_found := True
-        else
-          contents.remove
-          last_argument_found := True
-          if not contents.exhausted then
-            create host_name.make (contents.item.count)
-            host_name.append (contents.item)
-            contents.remove
-          else
-            error_occurred := True
-            log_errors (<<Hostname_error>>)
-          end
-        end
-      end
-    end
-=end
-
   # Set `port_number' and remove its settings from `contents'.
   def set_port_number
     (0 .. contents.count - 1).each do |i|
       if contents[i].is_integer? then
-        port_number = contents[i].to_i
+        @port_number = contents[i].to_i
         contents.delete_at(i)
         @last_argument_found = true
         break
@@ -163,141 +139,86 @@ class MaclCommandLine < CommandLine
     end
   end
 
-=begin
-#!!!!!old:
-  set_port_number
-      # Set `port_number' and remove its settings from `contents'.
-    do
-      from
-        contents.start
-      until
-        contents.exhausted
-      loop
-        if contents.item.is_integer then
-          port_number := contents.item.to_integer
-          contents.remove
-          @last_argument_found = true
-        else
-          contents.forth
-        end
-      end
-    end
-=end
-
+  # Set `record' and `output_file' and remove their settings
+  # from `contents'.
   def set_record_settings
-    #!!!!!![TBI]!!!!!!
-  end
-
-=begin
-#!!!!!old:
-  set_record_settings
-      # Set `record' and `output_file' and remove their settings
-      # from `contents'.
-    local
-      file_name: STRING
-    do
-      if output_file /= Void then
-        log_errors (<<Too_many_output_files_error>>)
-      elseif option_in_contents ('r') then
-        if contents.item.count > 2 then
-          record := true
-          create file_name.make (contents.item.count - 2)
-          file_name.append (contents.item.substring (
-            3, contents.item.count))
-          contents.remove
-          @last_argument_found = true
-        else
-          contents.remove
-          @last_argument_found = true
-          if not contents.exhausted then
-            record := true
-            create file_name.make (contents.item.count)
-            file_name.append (contents.item)
-            contents.remove
-          else
-            check
-              not_recording: not record
-            end
-            @error_occurred = true
-            log_errors (<<output_file_error>>)
-          end
-        end
+    if output_file != nil then
+      if option_in_contents('r') >= 0 then
+        log_errors([too_many_output_files_error])
       end
-      if output_file = Void and record then
-        create output_file.make (file_name)
-        if not output_file.exists or else output_file.is_writable then
-          output_file.open_write
+    else
+      index = option_in_contents('r')
+      if index >= 0 then
+        if contents[index].length > 2 then
+          @record = true
+          # (Exclude "-r" [e.g., in '-rinput-file']:)
+          file_name = contents[index][2..-1]
+          contents.delete_at(index)
+          @last_argument_found = true
         else
-          check
-            file_exists_and_is_not_writable:
-              output_file.exists and not output_file.is_writable
+          contents.delete_at(index)
+          @last_argument_found = true
+          if contents.count >= index then
+            @record = true
+            file_name = contents[index]
+            contents.delete_at(index)
+          else
+            check(! record, "not_recording")
+            @error_occurred = true
+            log_errors([output_file_error])
           end
-          @error_occurred = true
-          record := false
-          log_errors (<<"File ", output_file.name,
-            " is not writable.\n">>)
         end
       end
     end
-=end
+    if output_file.nil? && record then
+      @output_file = File.new(file_name, "w")
+    end
+  rescue StandardError => e
+    @error_occurred = true
+    @record = false
+    if
+      file_name != nil && FileTest.exist?(file_name) &&
+        ! FileTest.writable?(file_name)
+    then
+      log_errors(["File", file_name.to_s, "is not writable. (#{e})\n"])
+    else
+      log_errors(["Error: #{e}"])
+    end
+  end
 
   def set_input_from_file_settings
-    #!!!!!![TBI]!!!!!!
-  end
-
-=begin
-#!!!!!old:
-  set_input_from_file_settings
-      # Set `input_from_file' and `input_file' and remove their
-      # settings from `contents'.
-    local
-      file_name: STRING
-    do
-      if option_in_contents ('i') then
-        if input_file /= Void then
-          log_errors (<<Too_many_input_files_error>>)
-        elseif contents.item.count > 2 then
-          input_from_file := true
-          create file_name.make (contents.item.count - 2)
-          file_name.append (contents.item.substring (
-            3, contents.item.count))
-          contents.remove
-          @last_argument_found = true
+    index = option_in_contents('i')
+    if index >= 0 then
+      if input_file != nil then
+        log_errors ([Too_many_input_files_error])
+      elsif contents[index].length > 2 then
+        @input_from_file = true
+        file_name = contents[index][2..-1]
+        contents.delete_at(index)
+        @last_argument_found = true
+      else
+        contents.delete_at(index)
+        @last_argument_found = true
+        if contents.count >= index then
+          @input_from_file = true
+          file_name = contents[index]
+          contents.delete_at(index)
         else
-          contents.remove
-          @last_argument_found = true
-          if not contents.exhausted then
-            input_from_file := true
-            create file_name.make (contents.item.count)
-            file_name.append (contents.item)
-            contents.remove
-          else
-            check
-              not_file_input: not input_from_file
-            end
-            @error_occurred = true
-            log_errors (<<Input_file_error>>)
-          end
-        end
-      end
-      if input_file = Void and input_from_file then
-        create input_file.make (file_name)
-        if input_file.exists and then input_file.is_readable then
-          input_file.open_read
-        else
+          # not_file_input:
+          check(! input_from_file)
           @error_occurred = true
-          input_from_file := false
-          if not input_file.exists then
-            log_errors (<<"File ", input_file.name,
-              " does not exist.\n">>)
-          else
-            log_errors (<<"File ", input_file.name,
-              " is not readable.\n">>)
-          end
+          log_errors ([Input_file_error])
         end
       end
     end
-=end
+    if input_file.nil? && input_from_file then
+      @input_file = File.new(file_name, "r")
+    end
+  rescue StandardError => e
+    @error_occurred = true
+    @input_from_file = false
+    log_errors(["Error: opening #{file_name}: #{e}"])
+  end
 
   def set_terminate_on_error
     #!!!!!![TBI]!!!!!!
@@ -324,18 +245,6 @@ class MaclCommandLine < CommandLine
     end
   end
 
-=begin
-#!!!!!old:
-  set_timing_on
-    do
-      if option_string_in_contents ("ti") then
-        timing_on := true
-        contents.remove
-        @last_argument_found = true
-      end
-    end
-=end
-
   def set_quiet_mode
     index = option_in_contents('q')
     if index >= 0 then
@@ -345,19 +254,7 @@ class MaclCommandLine < CommandLine
     end
   end
 
-=begin
-#!!!!!old:
-  set_quiet_mode
-    do
-      if option_in_contents ('q') then
-        quiet_mode := true
-        contents.remove
-        @last_argument_found = true
-      end
-    end
-=end
-
-##### Implementation queries
+  ##### Implementation queries
 
   # List of the set_... procedures that are called
   # unconditionally - for convenience

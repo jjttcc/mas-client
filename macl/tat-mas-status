@@ -1,0 +1,12 @@
+#!/bin/env bash
+# Check if TAT mas servers are alive/responding.
+
+for n in 1 2 3 4; do
+    port=544$n
+    echo "port $port:"
+    nc 127.0.0.1 $port <<EOM
+C
+x
+
+EOM
+done

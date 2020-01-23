@@ -26,6 +26,18 @@ module RegularExpressionUtilities
     result
   end
 
+  # Captures, if any, resulting from a match of `pattern' - nil if no match
+  pre  :args_exist do |ptrn, s| ptrn != nil && s != nil end
+  post :last_regular_expression_exists do
+    self.last_regular_expression != nil end
+  def captures(pattern, s)
+    regexp = Regexp.compile(pattern)
+    result = regexp.match(s)
+    @last_regular_expression = regexp
+    @last_compile_failed = false
+    result
+  end
+
   # The result of replacing the first occurrence of
   # `pattern' in `target' by `replacement'.  `target' remains
   # unchanged.  If `pattern' is not found in `target' result

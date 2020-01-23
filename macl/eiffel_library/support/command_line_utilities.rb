@@ -1,22 +1,10 @@
 require 'ruby_contracts'
 
 # Command-line user interface functionality
-# Note!!!! (what to do re. ruby port?):
-# !!!!This class redefines print from GENERAL.  Classes that inherit from
-# this class and one or more other classes will need to undefine
-# the version of print inherited from the other classes.!!!!
 module CommandLineUtilities
   include Contracts::DSL, GeneralUtilities
 
-=begin
-#!!!!!ADDRESS THIS:
-  GeneralUtilities
-    export
-      {NONE} all
-    undefine
-      print
-    end
-=end
+  privatize_public_methods(GeneralUtilities)
 
   protected
 
@@ -50,7 +38,7 @@ module CommandLineUtilities
   # from which output will be received, respectively
   attr_accessor :input_device, :output_device # IO (or File, TCPSocket or ...?)
 
-##### Input
+  ##### Input
 
   # Input a string and place it in `last_string'.
   def read_line
@@ -76,7 +64,7 @@ module CommandLineUtilities
     self.current_lines_read = current_lines_read + 1
   end
 
-##### Miscellaneous
+  ##### Miscellaneous
 
   protected
 

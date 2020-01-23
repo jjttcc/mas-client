@@ -1,7 +1,6 @@
 require 'ruby_contracts'
 
 class IO
-  include Contracts::DSL
 
   public
 
@@ -11,18 +10,9 @@ class IO
     @last_string = self.gets("\n")
   end
 
-#from:
-# https://stackoverflow.com/questions/930989/is-there-a-simple-method-for-checking-whether-a-ruby-io-instance-will-block-on-r/5022480#5022480
-#!!!!!!(This appears to not work - If that's the case, remove it):
-  def ready_for_read?
-    result = IO.select([self], nil, nil, 0)
-    result && (result.first.first == self)
-  end
-
 end
 
 class Object
-  include Contracts::DSL
 
   private
 
@@ -31,6 +21,14 @@ class Object
 
   if ENV.has_key?(MACL_DEBUG_ENVVAR) then
     $DEBUGGING = true
+  end
+
+  def privatize_public_methods(o)
+    o.instance_methods(false).each do |m|
+      if o.public_method_defined?(m, false) then
+        private m
+      end
+    end
   end
 
   public
@@ -50,8 +48,8 @@ class Object
   end
 
   # Is the specified string 's' a valid integer?
-  post :false_if_empty do |result, s|
-     implies(s.nil? || ! s.is_a?(String) || s.empty?, ! result) end
+# post :false_if_empty do |result, s|
+#    implies(s.nil? || ! s.is_a?(String) || s.empty?, ! result) end
   def is_i?(s)
     s != nil && s.is_a?(String) && /\A[-+]?\d+\z/ === s
   end
@@ -60,17 +58,19 @@ class Object
     def debug(s = nil)
       if s != nil then
         if block_given? then
-          print "#{s}: "
+          $stderr.print "#{s}: "
         else
-          print "#{s}\n"
+          $stderr.print "#{s}\n"
         end
       end
       if block_given? then
         puts yield
       end
     end
+    def debugging_on?; true end
   else
     def debug(s = :optional); end
+    def debugging_on?; false end
   end
 
 end
@@ -86,15 +86,10 @@ class String
   end
 
   def is_integer?
-#    is_i?(self)
-self != nil && self.is_a?(String) && /\A[-+]?\d+\z/ === self
-#old:    self.to_i.to_s == self
+    self.is_a?(String) && /\A[-+]?\d+\z/ === self
   end
 
-  def is_integer
-    is_i?(self)
-#old:    self.to_i.to_s == self
-  end
+  alias_method :is_integer, :is_integer?
 
   def is_real?
     /\A[+-]?\d+(\.[\d]+)?\z/.match(self)

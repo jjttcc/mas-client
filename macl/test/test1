@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# Test of "macl -r <file" and "macl -i <file>"
+# Compare output from a run using stdin as source of macl commands with the
+# output from a run using (via the '-i <file>' command) the recorded input
+# ('-r <file>' option) from the first run.
+# NOTE: This test requires mas to run running as a server on port 5444.
+
+usage() {
+    echo "Usage: $0 <macl-path> [<portnum>]" >&2
+}
+
+prepmas() {
+    # Set data-period type to "daily".
+    $macl_exe $port >/dev/null <<EOI
+v
+c
+daily
+x
+EOI
+}
+
+init() {
+    if [ $# -eq 0 ]; then
+        usage
+        exit 2
+    fi
+    macl_exe=$1
+    if [ -x $macl_exe ]; then
+        :
+    else
+        echo "File $macl_exe does not exist or is not executable." >&2
+        usage
+        exit 3
+    fi
+    if type figlet >/dev/null; then
+        dramacmd=figlet
+    else
+        dramacmd=echo
+    fi
+    if [ $# -gt 1 ]; then
+        port=$2
+    else
+        port=5444   # One of the "traditional" MAS port numbers
+    fi
+    record_outfile=$(mktemp)
+    macl_oracle_out_data=$(mktemp)
+    macl_test_outfile=$(mktemp)
+}
+
+runtest() {
+    echo "Sending recorded input to: $record_outfile..."
+    prepmas
+    $macl_exe $port -r $record_outfile >$macl_oracle_out_data <<EOI
+s
+3
+v
+c
+1
+m
+c
+3
+m
+i
+7
+p
+-
+-
+e
+v
+18
+
+
+-
+x
+EOI
+    status=$?
+    if [ $status -ne 0 ]; then
+        echo -e "$macl_exe:\noracle run failed with $status." >&2
+        $dramacmd "oracle run failed with $status."
+        exit $status
+    fi
+
+    echo "Now obtaining input from: $record_outfile and sending"
+    echo "   output to $macl_test_outfile..."
+    prepmas
+    $macl_exe $port -i $record_outfile >$macl_test_outfile
+    if [ $status -ne 0 ]; then
+        echo -e "$macl_exe:\ntest run failed with $status." >&2
+        $dramacmd "test run failed with $status."
+        exit $status
+    fi
+    echo "oracle output and recorded-input result should have same wc results:"
+    wc $macl_test_outfile $macl_oracle_out_data
+    echo "'diff'ing the two files..."
+    if diff $macl_test_outfile $macl_oracle_out_data; then
+        $dramacmd "SUCCESS!      [: - )]"
+    else
+        $dramacmd "FAILED -        : - ("
+    fi
+}
+
+init $*
+runtest

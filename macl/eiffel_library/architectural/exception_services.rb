@@ -1,33 +1,13 @@
 require 'ruby_contracts'
+require 'cleanup_services'
 require 'exception_status'
 
 # Facilities for exception handling and program termination -
 # intended to be used via inheritance
 module ExceptionServices
-  include Contracts::DSL
+  include Contracts::DSL, CleanupServices
 
-=begin
-  EXCEPTIONS
-    export
-      {NONE} all
-      {ANY} raise, deep_twin, is_deep_equal, standard_is_equal
-    end
-
-  UNIX_SIGNALS
-    rename
-      meaning as signal_meaning, ignore as ignore_signal,
-      catch as catch_signal
-    export
-      {NONE} all
-    end
-=end
-
-=begin
-  CleanupServices
-    export
-      {NONE} all
-    end
-=end
+  privatize_public_methods(CleanupServices)
 
   public
 
@@ -74,6 +54,7 @@ module ExceptionServices
 ##### Basic operations
 
 =begin
+#!!!!!![convert or remove:]
   handle_exception (routine_description: STRING)
     local
       error_msg: STRING
@@ -247,9 +228,10 @@ module ExceptionServices
     "server"
   end
 
-##### Implementation
+  ##### Implementation
 
 =begin
+#!!!!!![convert or remove:]
   exception_routine_string: STRING
     do
       result = ""

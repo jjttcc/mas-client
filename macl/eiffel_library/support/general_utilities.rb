@@ -13,12 +13,7 @@ module GeneralUtilities
   pre  :not_void do |a| a != nil end
   post :not_void do |result| result != nil end
   def concatenation(a)
-    result = ""
-    a.each do |s|
-      if s != nil then
-        result += s.to_s
-      end
-    end
+    a.join
   end
 
   # A string containing a concatenation of all elements of `l',
@@ -28,16 +23,7 @@ module GeneralUtilities
   post :empty_if_empty do |result, l|
     implies l.empty?, result.empty? end
   def list_concatenation(l, suffix)
-    result = ""
-    s = ""
-    if suffix != nil && ! suffix.empty? then
-      s = suffix
-    end
-    l.each do |e|
-      if e != nil then
-        result += e.to_s + s
-      end
-    end
+    l.join(suffix) + suffix.to_s
   end
 
   # A string containing a concatenation of all elements of `l'
@@ -47,24 +33,8 @@ module GeneralUtilities
   post :not_void do |result| result != nil end
   post :empty_if_empty do |result, l| l.empty? implies result.empty? end
   def field_concatenation(l, separator)
-      from
-      result = ""
-      s = separator
-      l.start
-      if not l.exhausted then
-        result = result + l.item.to_s
-        l.forth
-      end
-      until
-        l.exhausted
-        loop
-        result = result + s
-        if l.item != nil then
-          result = result + l.item.to_s
-        end
-        l.forth
-      end
-    end
+    l.join(suffix)
+  end
 
   # Replace in `target' all occurrences of
   # `start_delimiter' + `token' + `end_delimiter'
@@ -95,10 +65,10 @@ module GeneralUtilities
   # Concatenation of `l' into a string whose elements are
   # separated with `separator'
   pre  :args_exist do |l, separator| l != nil && separator != nil end
-  post :exists do result != nil end
-  post :empty_if_l_empty do l.empty? implies result.empty? end
+  post :exists do |result| result != nil end
+  post :empty_if_l_empty do |result, l| implies l.empty?, result.empty? end
   post :no_separator_at_end do |result, l| implies(! result.empty?,
-         result[result.count-1] == l.last[l.last.count-1]) end
+         result[-1] == l.last.to_s[-1]) end
   def merged(l, separator)
     result = l.join(separator)
     result
@@ -180,7 +150,7 @@ module GeneralUtilities
     Time.now
   end
 
-##### Logging
+  ##### Logging
 
   # Log `msg' as an error.
   # If `msg' is longer than `Maximum_message_length', only

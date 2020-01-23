@@ -1,23 +1,13 @@
+require 'ruby_contracts'
 require 'command_line'
 require 'general_utilities'
 
 # Parser of command-line arguments for Market Analysis
 # Command-Line client application
 class MaclCommandLine < CommandLine
-=begin
-    redefine
-      help_string, ambiguous_characters, debug_string
-    end
-=end
+  include Contracts::DSL, GeneralUtilities
 
-  include GeneralUtilities
-
-=begin
-  GeneralUtilities
-    export
-      {NONE} all
-    end
-=end
+  privatize_public_methods(GeneralUtilities)
 
   public
 
@@ -79,15 +69,9 @@ class MaclCommandLine < CommandLine
 
   ##### Implementation - Hook routine implementations
 
-=begin
-  ambiguous_characters: LINEAR [CHARACTER]
-    local
-      a: ARRAY [CHARACTER]
-    once
-      a := <<'t'>>
-      result := a.linear_representation
-    end
-=end
+  def ambiguous_characters
+    ['t']
+  end
 
   def prepare_for_argument_processing
     @port_number = -1
@@ -98,10 +82,14 @@ class MaclCommandLine < CommandLine
     @initialization_complete = true
   end
 
-##### Implementation
+  ##### Implementation
 
   def help_string
-    'help'
+    'H'
+  end
+
+  def debug_string
+    "deb"
   end
 
   # Set `host_name' and remove its settings from `contents'.

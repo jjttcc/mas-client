@@ -1,7 +1,7 @@
 require 'general_utilities'
 
 # Global services for cleanup registration and execution
-class CleanupServices
+module CleanupServices
   protected
   include Contracts::DSL, GeneralUtilities
 
@@ -20,7 +20,7 @@ class CleanupServices
 
   # Remove (all occurrences of) `v' from @@termination_registrants.
   post :not_registered do ! @@termination_registrants.include?(v) end
-  def unregister_for_termination(v: TERMINABLE)
+  def unregister_for_termination(v)
     @@termination_registrants.reject! {|e| e == v}
   end
 

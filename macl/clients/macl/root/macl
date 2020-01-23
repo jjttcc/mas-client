@@ -15,7 +15,7 @@ end
 
 config_paths
 
-require 'macl.rb'
 require 'object_extension'
+require 'macl'
 
 m = Macl.new

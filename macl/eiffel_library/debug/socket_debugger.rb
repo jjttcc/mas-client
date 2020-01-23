@@ -2,12 +2,6 @@
 class SocketDebugger
   include Contracts::DSL
 
-=begin
-creation
-
-  make_with_socket
-=end
-
   private
 
   #####  Initialization

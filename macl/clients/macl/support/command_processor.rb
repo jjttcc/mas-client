@@ -1,24 +1,13 @@
 require 'ruby_contracts'
 require 'regular_expression_utilities'
-#!!!!require 'exceptions'
+require 'ma_communication_protocol'
 
 # Objects responsible for processing user-supplied commands
 class CommandProcessor
-  private
   include Contracts::DSL, RegularExpressionUtilities, GeneralUtilities
+  include MACommunicationProtocol
 
-=begin
-###!!!!!!delete these lines soon:
-    RegularExpressionUtilities
-        rename match as re_match end
-=end
-
-=begin
-    GeneralUtilities
-        export
-            {NONE} all
-        end
-=end
+  privatize_public_methods(GeneralUtilities)
 
   private
 
@@ -29,7 +18,6 @@ class CommandProcessor
     self.input_record = ""
     self.fatal_error = false
     self.error = false
-#!!!!!!!!!Check if the change from ".*" to '.*' yields correct behavior:
     self.select_patterns = [
       'Select[^?]*function',
       'Select[^?]*opera[nt][do]',
@@ -48,8 +36,6 @@ class CommandProcessor
       'Indicator *\'.*\' *children:',
       # Built to match "1) word\n.*" but not match
       # "1) word   2) word.*":
-#!!!!!!!CHECK THIS FIX:
-# command_processor.rb:151:in `match': unmatched close parenthesis: /^1) [^)]*$/ (RegexpError)
       '^1\) [^)]*$'
     ]
     # match: "(Hit <Enter> to restart the command-line client.)":
@@ -92,13 +78,11 @@ class CommandProcessor
     self.fatal_error = false
     self.error = false
     self.server_response_is_selection_list = false
-    if s.match(exit_pattern) then
+    if s.nil? || s.match(eot) || s.match(exit_pattern) then
       raise MaclServerExitError
-#      puts "IT IS TIME TO SAY GOODBYE."
-#      #!!!!!!!CHECK: Should this exit happen here???:
-#      exit 0
     elsif s.match(continue_pattern) then
       self.empty_response_allowed = true
+    else
     end
     if invalid_pattern_match(s) then
       # Server responded with "invalid input" message.
@@ -179,20 +163,18 @@ class CommandProcessor
     matching_pattern != nil
   end
 
-  # Extract each "object" name and associated selection number
-  # from `s' and store this pair as key (number) and value
-  # (name) in either `objects' or `shared_objects' according
-  # to whether or not the "object" is shared.
+  # Extract each "object" name and associated selection number from `s' and
+  # store this pair as key (number) and value (name) in either `objects' or
+  # `shared_objects' according to whether or not the "object" is shared
+  # (i.e., already being used).
   def store_objects_from_selection_list(s)
     objects.clear; shared_objects.clear
     # Ensure that DOS-based text can be properly split on
     # a newline by removing the carriage return:
     s.delete("\r")
-    lines = s.split ("\n")
+    lines = s.split("\n")
     lines.each do |l|
-      debug("sc") do
-        "l: '" + l + "'\n"
-      end
+      debug("sc") do "l: '" + l + "'\n" end
       if match(Selection_list_pattern, l) then
         if match(Two_column_selection_list_pattern, l) then
           process_2_column_selection_line(objects, l)
@@ -201,13 +183,12 @@ class CommandProcessor
           process_selection_line(objects, l)
         end
       elsif match(Non_shared_pattern, l) && objects.count > 0 then
-        # `l' indicates that the remaining items
-        # (lines) constitute the list of "non-shared objects".
-        # This means that `objects', which contains the
-        # already processed `lines', holds the list of
-        # "shared objects", so adjust the contents of
-        # 'shared_objects' and 'objects' accordingly.
-        shared_objects = objects.clone
+        # `l' indicates that the remaining items (lines) constitute the list
+        # of "non-shared objects". This means that `objects', which contains
+        # the already processed `lines', holds the list of "shared objects",
+        # so adjust the contents of 'shared_objects' and 'objects'
+        # accordingly.
+        self.shared_objects = objects.clone
         objects.clear
       end
     end
@@ -307,10 +288,11 @@ class CommandProcessor
   # name" and insert this pair into `obj_table', where "object
   # number" is the key and "object name" is the data item.
   def process_2_column_selection_line(obj_table, line)
-    if match("^([0-9]+\).*)[ \t]+([0-9]+\).*)[ \t]*", line) then
-#!!!!!!!FIX: convert to use ruby Regexp capture mechanism:
-      item1 = last_regular_expression.captured_substring(1)
-      item2 = last_regular_expression.captured_substring(2)
+    captured =
+      captures('^(?<first>[0-9]+\).*)[ \t]+(?<second>[0-9]+\).*)[ \t]*', line)
+    if captured then
+      item1 = captured[:first]
+      item2 = captured[:second]
       process_selection_line(obj_table, item1)
       process_selection_line(obj_table, item2)
     else
@@ -369,11 +351,12 @@ class CommandProcessor
   # Patterns for invalid or incorrect input
   INVALID_PATTERNS = ["Invalid selection", "Selection must be between"]
 
-  Non_shared_pattern = ".*List of valid non.shared objects:.*"
+  Non_shared_pattern = Regexp.new(
+    /list\s*of\s*valid\s*non.?shared\s*objects:/i)
 
   # Pattern indicating that the user response indicates a
   # "shared" object
-  Shared_pattern = "shared *"
+  Shared_pattern = /shared */
 
   # String used to label a user response as specifying a
   # "shared" object
@@ -398,14 +381,10 @@ class CommandProcessor
   attr_accessor :shared_objects     # HASH_TABLE [STRING, STRING]
 
   # Pattern indicating that the server has sent a "selection list"
-#!!!instead of:  Selection_list_pattern = "^[1-9][0-9]*\)"
-#!!!try [not sure yet - more testing/debugging needed!!!!!]:
-Selection_list_pattern = '^[1-9][0-9]*\)'
+  Selection_list_pattern = '^[1-9][0-9]*\)'
 
   # Pattern indicating that the server has sent a 2-column
   # "selection list"
-#!!!instead of:  Two_column_selection_list_pattern = "^[1-9][0-9]*\).*[ \t][1-9][0-9]*\)"
-#!!!try [not sure yet - more testing/debugging needed!!!!!]:
   Two_column_selection_list_pattern = '^[1-9][0-9]*\).*[ \t][1-9][0-9]*\)'
 
   SANE_CHAR_LIMIT = 100

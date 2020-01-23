@@ -4,20 +4,11 @@ require 'ruby_contracts'
 class CommandLine
   include Contracts::DSL
 
-=begin
-  ARGUMENTS
-    export
-      {NONE} all
-      {ANY} deep_twin, is_deep_equal, standard_is_equal
-    end
-=end
-
   private
 
   ##### Initialization
 
   def initialize
-me = "#{self.class}.#{__method__}"
     @error_description = ""
     @contents = ARGV.dup
     prepare_for_argument_processing
@@ -58,7 +49,7 @@ me = "#{self.class}.#{__method__}"
     File.basename($0)
   end
 
-##### Basic operations
+  ##### Basic operations
 
   # Print `usage' message.
   def print_usage
@@ -135,18 +126,14 @@ me = "#{self.class}.#{__method__}"
     []
   end
 
-=begin
-  handle_ambiguous_option
-      # Handle the ambiguous option in `contents.item'.
-    do
-      # Redefine if different behavior is needed.
-      @error_occurred = true
-      @error_description = Ambiguous_option_message + ": %"" +
-        contents.item + "%"%N"
-    end
-=end
+  # Handle the ambiguous option.
+  def handle_ambiguous_option(c)
+    # Redefine if different behavior is needed.
+    @error_occurred = true
+    @error_description = Ambiguous_option_message + ': "' + c + '"' + "\n"
+  end
 
-##### Implementation
+  ##### Implementation
 
   attr_reader :contents   # LINKED_LIST [STRING]
 
@@ -232,25 +219,27 @@ me = "#{self.class}.#{__method__}"
     result
   end
 
-  ###!!!!![check whether this works!!!!!]!!!!!!!###
   alias_method :option_string_in_contents, :option_in_contents
 
   # Does `c' occur in `contents' as a one-character option
   # (e.g., "-x")?
-  def one_character_option(c: CHARACTER)
-      index = option_in_contents(c)
-      if index >= 0 then
-        result = contents[index] == "-#{c.to_s}" ||
-          contents[index] == "--#{c.to_s}"
-      end
+  def one_character_option(c)
+    index = option_in_contents(c)
+    if index >= 0 then
+      result = contents[index] == "-#{c.to_s}" ||
+      contents[index] == "--#{c.to_s}"
     end
+  end
 
   # Check for ambiguous options
   def check_for_ambiguous_options
     ambiguous_characters.each do |c|
       if one_character_option(c) then
-        handle_ambiguous_option
-        contents.remove
+        handle_ambiguous_option(c)
+        i = option_in_contents(c)
+        if i >= 0 then
+          contents.delete_at(i)
+        end
       end
     end
   end
@@ -268,14 +257,12 @@ me = "#{self.class}.#{__method__}"
     end
   end
 
-##### Implementation - Constants
+  ##### Implementation - Constants
 
   def debug_string
     "debug"
   end
 
-  def ambiguous_option_message
-    "Ambiguous option"
-  end
+  Ambiguous_option_message = "Ambiguous option"
 
 end

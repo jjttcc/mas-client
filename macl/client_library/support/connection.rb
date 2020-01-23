@@ -1,27 +1,14 @@
 require 'ruby_contracts'
 require 'client_connection'
 require 'ma_communication_protocol'
+require 'timer'
 
 # Socket connection facilities for Market Analysis
 # command-line clients.
 class Connection < ClientConnection
-  public :close
-
-=begin
-    export
-      {ANY} close, send_request
-    redefine
-      end_of_message
-    end
-=end
+  public :close, :send_request
 
   include Contracts::DSL, MACommunicationProtocol
-
-=begin
-create
-
-  make_connected, start_conversation
-=end
 
   private
 
@@ -125,14 +112,6 @@ create
   def end_of_message(s)
     @termination_requested = s[-1] == eot[0]
     result = @termination_requested || s[-1] == eom[0]
-$stdout.puts "#{self.class}.#{__method__} - s, result: #{s}, #{result}"
-$stdout.flush
-    result
-  end
-
-  def old___end_of_message(c)
-    result = c == eom[0] || c == eot[0]
-    @termination_requested = c == eot[0]
     result
   end
 

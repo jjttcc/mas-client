@@ -123,7 +123,9 @@ class ClientConnection
       @error_report = connection_failed_msg
     end
   rescue StandardError => e
-    puts "#{self.class}.#{__method__} - error: #{e}\n#{caller.join("\n")}"
+    if debugging_on? then
+      puts "#{self.class}.#{__method__} - error: #{e}\n#{caller.join("\n")}"
+    end
     @error_report = Invalid_address_msg
   end
 
@@ -221,7 +223,7 @@ class ClientConnection
     result
   end
 
-##### Implementation
+  ##### Implementation
 
   # Number of seconds client will wait for server to respond
   # before reporting a "timed-out" message
@@ -260,11 +262,6 @@ https://stackoverflow.com/questions/16383416/how-to-maintain-the-tcp-connection-
 https://www.scottklement.com/rpg/socktut/nonblocking.html
 https://ruby-doc.com/docs/ProgrammingRuby/html/lib_network.html
 =end
-#!!!!!Note: Since Socket.tcp appears to be more flexible than TCPSocket
-#!!!!!      (e.g., you can specify time-out on construction), I switched
-#!!!!!      from
-#!!!!!old:  TCPSocket.new(host, port)
-#!!!!!      to:
     Socket.tcp(host, port, connect_timeout: timeout_value)
   end
 

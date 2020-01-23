@@ -1,5 +1,4 @@
 require 'ruby_contracts'
-#!!!!require 'exceptions'
 require 'macl_command_line'
 require 'command_line_utilities'
 require 'exception_services'
@@ -11,32 +10,10 @@ require 'connection'
 class Macl
   include Contracts::DSL, CommandLineUtilities, ExceptionServices
 
+  privatize_public_methods(CommandLineUtilities)
+  privatize_public_methods(ExceptionServices)
+
   alias_method :output_message, :print
-
-=begin
-  CommandLineUtilities
-    rename
-!!!check:      print as output_message
-    export
-!!!to-do:      {NONE} all
-      {ANY} deep_twin, is_deep_equal, standard_is_equal
-    redefine
-      output_device
-    end
-=end
-
-=begin
-  ExceptionServices
-    rename
-!!!check:     print as output_message
-    export
-!!!to-do:      {NONE} all
-    undefine
-      output_message
-    redefine
-      application_name
-    end
-=end
 
   private
 
@@ -54,34 +31,32 @@ class Macl
     if command_line.timing_on then
       connection.set_timing (true)
     end
-    while ! ( connection.termination_requested ||
-             ! connection.last_communication_succeeded)
-      print(connection.server_response)
-      processor.process_server_msg(connection.server_response)
-      handle_error
-      processor.process_request(user_response)
-      begin
-        connection.send_message(processor.product)
-      rescue Errno::EPIPE => e
-        if reconnected_after_epipe then
-          next
-        else
-          break #!!!!?????<-
-        end
-      end
-      # Save the recorded input as it is entered to ensure the
-      # output has been saved if an unrecoverable exception occurs.
-      output_current_input_record
+    if connection.connected then
+      execute
+    else
+      raise "Socket initialization failed: #{connection.error_report}\n"
     end
-    if ! connection.last_communication_succeeded then
-      print("#{connection.error_report}\n")
-    end
-    connection.close
-    close_output_file
+    cleanup
   rescue MaclServerExitError => e
+    cleanup
     puts e; exit 0
-  rescue StandardError => e
-    puts "ERROR: '#{e}' [#{e.class}] - exiting... stack:\n#{caller.join("\n")}"
+  rescue SystemExit => e
+    if e.success? then
+      exit 0
+    else
+      $stderr.puts "Error: #{e.message} (#{e.status})"
+      if debugging_on? then
+        $stderr.puts "ERROR: [#{e.class}] - stack:\n"\
+          "#{e.backtrace.join("\n")}"
+      end
+      exit e.status
+    end
+  rescue Exception => e
+    $stderr.puts "Error: #{e}"
+    if debugging_on? then
+      $stderr.puts "ERROR: [#{e.class}] - stack:\n"\
+      "#{e.backtrace.join("\n")}"
+    end
     handle_fatal_exception
   end
 
@@ -118,7 +93,7 @@ class Macl
 
   ##### Utilities
 
-  def abort(msg)
+  def abort(msg = nil)
     if msg != nil then
       print(msg + " - ")
     end
@@ -133,8 +108,12 @@ class Macl
     finished = false
     result = ""
     @last_input_line_number = 0
+    loopcount = 0
     while !  finished do
-      result = string_selection("")
+      result = string_selection("").strip
+      if loopcount == 1 && result == "" then
+        result = " "
+      end
       if
         processor.empty_response_allowed ||
         (! result.empty? && result[0] != comment_character)
@@ -145,13 +124,14 @@ class Macl
       if command_line.is_debug then
         print ("\ninput line: " + @last_input_line_number + "\n")
       end
+      loopcount += 1
     end
-    result.strip
+    result
   end
 
   # Exit and close the connection.
   def exit_and_close_connection
-    print ("Exiting ...\n")
+    $stderr.print ("Exiting ...\n")
     if connection != nil and connection.socket_ok then
       connection.send_request(exit_string, false)
       connection.close
@@ -198,28 +178,28 @@ class Macl
   end
 
   # If `processor.record', output `processor.input_record' to
-  # `command_line.output_file'.
+  # `command_line.output_file' and then empty it.
   pre  :processor_exists do processor != nil end
   post :input_saved_and_cleared do
     implies(processor.record, processor.input_record.empty?) end
   def output_current_input_record
-    if processor.record then
+    if processor.record && ! processor.input_record.empty? then
       command_line.output_file.print(processor.input_record)
       command_line.output_file.flush
       processor.input_record.clear_all
     end
   end
 
-  # If `processor.record', close `command_line.output_file'.
-  pre :processor_exists do processor != nil end
-  pre :no_more_output do
+  # If `processor.record', ensure that `command_line.output_file' is closed.
+  pre  :processor_exists do processor != nil end
+  pre  :no_more_output do
     implies(processor.record, processor.input_record.empty?) end
-  pre :file_open_if_record do
-    ! processor.record || ! command_line.output_file.closed? end
+  post :closed_if_record do
+    ! processor.record || command_line.output_file.closed? end
   def close_output_file
-    if processor.record then
-      print ("Saved recorded input to file " +
-             command_line.output_file.name + ".\n")
+    if processor.record && ! command_line.output_file.closed? then
+      $stderr.print ("Saved recorded input to file " +
+             command_line.output_file.path + ".\n")
       command_line.output_file.close
     end
   end
@@ -233,15 +213,56 @@ class Macl
     end
   end
 
-##### Attribute redefinitions
+  ##### Attribute redefinitions
 
   attr_accessor :output_device    # PLAIN_TEXT_FILE
 
-##### Implementation
+  ##### Implementation
 
   attr_reader :command_line   # MACL_COMMAND_LINE
   attr_reader :connection     # CONNECTION
-  attr_reader :record_file    # PLAIN_TEXT_FILE
+
+  # Loop until user requests termination or a fatal error occurs.
+  pre  :connected do connection.connected end
+  def execute
+    while ! ( connection.termination_requested ||
+             ! connection.last_communication_succeeded)
+      print(connection.server_response)
+      processor.process_server_msg(connection.server_response)
+      handle_error
+      processor.process_request(user_response)
+      begin
+        connection.send_message(processor.product)
+      rescue Errno::EPIPE => e
+        if reconnected_after_epipe then
+          output_current_input_record
+          next
+        else
+          raise e
+        end
+      end
+      # Save the recorded input as it is entered to ensure the
+      # output has been saved if an unrecoverable exception occurs.
+      output_current_input_record
+    end
+    if ! connection.last_communication_succeeded then
+      print("#{connection.error_report}\n")
+    end
+  end
+
+  # Ensure output is saved, i/o devices are closed, etc.
+  pre  :conn_proc_cl_exist do
+    ! (connection.nil? || processor.nil? || command_line.nil?) end
+  post :conn_closed do ! connection.connected end
+  post :closed_if_record do
+    ! processor.record || command_line.output_file.closed? end
+  def cleanup
+    output_current_input_record
+    if connection.connected then
+      connection.close
+    end
+    close_output_file
+  end
 
   def exit_string
     "x\n"

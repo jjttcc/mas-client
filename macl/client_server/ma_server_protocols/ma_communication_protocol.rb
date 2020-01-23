@@ -1,3 +1,5 @@
+require 'basic_communication_protocol'
+
 # Constants specifying the basic components of the MA server
 # communication protocol
 module MACommunicationProtocol

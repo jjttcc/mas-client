@@ -161,8 +161,6 @@ class CommandLine
     end
   end
 
-#!!!!!NOTE: This is being called and appears to work, but the
-#!!!!!version request is being ignored - i.e., fix it!!!!!
   def set_version_request
     index = option_in_contents('v')
     debug "#{__method__} - index: #{index}"

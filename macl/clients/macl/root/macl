@@ -7,7 +7,11 @@ def config_paths
     eiffel_library/support
   )
 
-  base_path = "#{File.dirname($0)}/../../.."
+  if File.symlink?($0) then
+    base_path = "#{File.dirname(File.readlink($0))}/../../.."
+  else
+    base_path = "#{File.dirname($0)}/../../.."
+  end
   dirs.each do |d|
     $LOAD_PATH << "#{base_path}/#{d}"
   end

@@ -17,6 +17,8 @@ class Macl
 
   private
 
+  MACL_VERSION = "1.0"
+
   attr_reader :processor
 
   ##### Initialization
@@ -70,7 +72,11 @@ class Macl
       abort
     end
     if command_line.help then
-      print (command_line.usage)
+      print(command_line.usage)
+      exit(0)
+    end
+    if command_line.version_request then
+      puts(version)
       exit(0)
     end
     if command_line.input_from_file then
@@ -80,7 +86,7 @@ class Macl
     end
     self.port = command_line.port_number
     if port == -1 then
-      print (command_line.usage)
+      print(command_line.usage)
       abort ("Missing port number")
     end
     self.host = command_line.host_name
@@ -122,7 +128,7 @@ class Macl
       end
       @last_input_line_number = @last_input_line_number + 1
       if command_line.is_debug then
-        print ("\ninput line: " + @last_input_line_number + "\n")
+        print("\ninput line: " + @last_input_line_number + "\n")
       end
       loopcount += 1
     end
@@ -131,7 +137,7 @@ class Macl
 
   # Exit and close the connection.
   def exit_and_close_connection
-    $stderr.print ("Exiting ...\n")
+    $stderr.print("Exiting ...\n")
     if connection != nil and connection.socket_ok then
       connection.send_request(exit_string, false)
       connection.close
@@ -198,7 +204,7 @@ class Macl
     ! processor.record || command_line.output_file.closed? end
   def close_output_file
     if processor.record && ! command_line.output_file.closed? then
-      $stderr.print ("Saved recorded input to file " +
+      $stderr.print("Saved recorded input to file " +
              command_line.output_file.path + ".\n")
       command_line.output_file.close
     end
@@ -262,6 +268,10 @@ class Macl
       connection.close
     end
     close_output_file
+  end
+
+  def version
+    MACL_VERSION
   end
 
   def exit_string

@@ -28,7 +28,8 @@ class MaclCommandLine < CommandLine
       "   -q              Quiet mode - suppress output - for " +
       "use with -i\n" +
       "   -debug          Debug mode - print input line numbers\n" +
-      "   -?              Print this help message\n"
+      "   -?              Print this help message and exit\n" +
+      "   -v              Print version and exit\n"
   end
 
   ##### Access -- settings
